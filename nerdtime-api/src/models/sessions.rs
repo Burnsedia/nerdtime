@@ -8,15 +8,11 @@ pub use super::_entities::sessions::{self, ActiveModel, Entity, Model};
 
 #[async_trait::async_trait]
 impl ActiveModelBehavior for ActiveModel {
-    async fn before_save<C>(self, _db: &C, insert: bool) -> Result<Self, DbErr>
+    async fn before_save<C>(self, _db: &C, _insert: bool) -> Result<Self, DbErr>
     where
         C: ConnectionTrait,
     {
-        if insert {
-            Ok(self)
-        } else {
-            Ok(self)
-        }
+        Ok(self)
     }
 }
 
@@ -107,7 +103,7 @@ impl Model {
         }
 
         let mut result: Vec<ProjectStats> = stats.into_values().collect();
-        result.sort_by(|a, b| b.total_seconds.cmp(&a.total_seconds));
+        result.sort_by_key(|b| std::cmp::Reverse(b.total_seconds));
         Ok(result)
     }
 }
