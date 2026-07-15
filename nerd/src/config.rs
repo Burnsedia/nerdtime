@@ -7,6 +7,7 @@ use std::path::PathBuf;
 pub struct Config {
     pub api_url: String,
     pub token: Option<String>,
+    pub user_email: Option<String>,
     pub github_token: Option<String>,
     pub default_github_repo: Option<String>,
 }
@@ -16,6 +17,7 @@ impl Default for Config {
         Self {
             api_url: "http://localhost:3000/api".to_string(),
             token: None,
+            user_email: None,
             github_token: None,
             default_github_repo: None,
         }

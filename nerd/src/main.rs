@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 mod advisor;
+mod auth;
 mod config;
 mod db;
 mod devlog;
@@ -11,6 +12,7 @@ use anyhow::{Context, Result};
 use chrono::Utc;
 use clap::{Parser, Subcommand};
 use colored::Colorize;
+use std::io::Write;
 
 #[derive(Parser)]
 #[command(name = "nerd", version = "0.1.0", about = "Flow-first time tracking")]
@@ -48,14 +50,18 @@ enum Commands {
         #[arg(short, long, default_value = "10")]
         limit: usize,
     },
-    /// Authenticate with the nerdtime API server
+    /// Log in interactively (or provide a token for headless auth)
     Login {
         /// API server URL (e.g. https://nerdtime.dev)
         #[arg(short, long)]
         url: Option<String>,
-        /// JWT token for authentication
-        token: String,
+        /// JWT token (headless mode)
+        token: Option<String>,
     },
+    /// Create a new account
+    Signup,
+    /// Clear stored credentials
+    Logout,
     /// Show configuration
     Config,
     /// Show a heatmap of tracked time (weekday x hour grid)
@@ -315,7 +321,67 @@ fn main() -> Result<()> {
         Commands::Status => db::show_status(&conn),
         Commands::Sync => db::sync_sessions(&conn),
         Commands::Log { project, limit } => db::list_sessions(&conn, project.as_deref(), *limit),
-        Commands::Login { url, token } => login(url.as_deref(), token),
+        Commands::Login { url, token } => match token {
+            Some(t) => login_headless(url.as_deref(), t),
+            None => {
+                let cfg = config::load()?;
+                if cfg.token.is_some() {
+                    let email = cfg.user_email.as_deref().unwrap_or("unknown");
+                    anyhow::bail!("Already logged in as {}. Run `nerd logout` first.", email);
+                }
+                if let Some(u) = url {
+                    let mut cfg = config::load()?;
+                    cfg.api_url = u.trim_end_matches('/').to_string();
+                    config::save(&cfg)?;
+                }
+                let email: String = dialoguer::Input::new()
+                    .with_prompt("Email")
+                    .validate_with(|input: &String| -> Result<(), &str> {
+                        if input.contains('@') {
+                            Ok(())
+                        } else {
+                            Err("Must contain @")
+                        }
+                    })
+                    .interact_text()?;
+                print!("Password: ");
+                std::io::stdout().flush().ok();
+                let password = rpassword::read_password()?;
+                auth::login(&email, &password)
+            }
+        },
+        Commands::Signup => {
+            let email: String = dialoguer::Input::new()
+                .with_prompt("Email")
+                .validate_with(|input: &String| -> Result<(), &str> {
+                    if input.contains('@') {
+                        Ok(())
+                    } else {
+                        Err("Must contain @")
+                    }
+                })
+                .interact_text()?;
+            let name: String = dialoguer::Input::new()
+                .with_prompt("Name")
+                .interact_text()?;
+            print!("Password: ");
+            std::io::stdout().flush().ok();
+            let password = rpassword::read_password()?;
+            print!("Confirm password: ");
+            std::io::stdout().flush().ok();
+            let confirm = rpassword::read_password()?;
+            if password != confirm {
+                anyhow::bail!("Passwords do not match.");
+            }
+            auth::signup(&email, &password, &name)
+        }
+        Commands::Logout => {
+            let cfg = config::load()?;
+            if cfg.token.is_none() {
+                anyhow::bail!("You are not logged in.");
+            }
+            auth::logout()
+        }
         Commands::Config => show_config(),
         Commands::Heatmap { days, project } => {
             let cells = db::heatmap_data(&conn, *days, project.as_deref())?;
@@ -694,7 +760,7 @@ fn handle_advisor(
     }
 }
 
-fn login(url: Option<&str>, token: &str) -> Result<()> {
+fn login_headless(url: Option<&str>, token: &str) -> Result<()> {
     let mut cfg = config::load()?;
     if let Some(u) = url {
         cfg.api_url = u.trim_end_matches('/').to_string();
@@ -715,6 +781,10 @@ fn show_config() -> Result<()> {
         } else {
             "not set".yellow()
         }
+    );
+    println!(
+        "User:     {}",
+        cfg.user_email.as_deref().unwrap_or("not logged in")
     );
     println!(
         "GitHub token: {}",
