@@ -57,6 +57,11 @@ cargo clippy --all-features -- -D warnings
 - **Never force-push** or amend pushed commits.
 - **Review before commit** — run `git status`, `git diff`, and `git log --oneline -5` first. Only stage intended files.
 
+## Licensing
+
+- All new source files **must** include `// SPDX-License-Identifier: AGPL-3.0-only` as the first line.
+- All `Cargo.toml` manifests must have `license = "AGPL-3.0-only"`.
+
 ## Quirks
 
 - `include_dir!` **must** use `$CARGO_MANIFEST_DIR/` prefix (e.g. `include_dir!("$CARGO_MANIFEST_DIR/src/mailers/auth/welcome")`) — the macro resolves relative to CWD, not crate root
