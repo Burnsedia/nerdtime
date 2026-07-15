@@ -1,6 +1,6 @@
 # nerdtime Roadmap
 
-Product phases for nerdtime, the terminal-native time tracker for developers.
+Product phases for nerdtime, the quantified-self system for developers.
 
 ## Legend
 
@@ -11,9 +11,9 @@ Product phases for nerdtime, the terminal-native time tracker for developers.
 | 📝 | Spec complete, not started |
 | 💡 | Idea / not spec'd |
 
-## Phase 0: MVP ✅
+## Phase 0: Foundation ✅
 
-*The foundational product. Offline CLI, cloud sync, payment gating.*
+*The offline-first CLI with cloud sync.*
 
 - [x] `nerd start/stop/status/log` — core tracking loop
 - [x] `nerd sync` — offline queue → cloud
@@ -26,46 +26,69 @@ Product phases for nerdtime, the terminal-native time tracker for developers.
 - [x] Subscription gating (free tier vs pro)
 - [x] Self-host deployment (docker-compose)
 
-## Phase 1: Launch polish
+## Phase 1: Quantified Self MVP
 
-*Ship-ready quality. Interactive auth, deployment, landing page.*
+*The full dev intelligence loop: track → log → prioritize → visualize.*
+
+### Time & heatmap
+
+- [ ] `nerd heatmap` — GitHub-style terminal contribution grid (weekday × hour)
+- [ ] `nerd insights` — per-project breakdown by weekday/hour, trend analysis
+
+### Tasks & Eisenhower Matrix
+
+- [ ] `nerd task add/list/edit/complete/cancel` — task CRUD
+- [ ] Eisenhower Matrix (urgency 1-5, importance 1-5, 4 quadrants)
+- [ ] `nerd task matrix` — quadrant view
+- [ ] `nerd what-should-i-work-on` — deterministic analysis paralysis helper
+
+### DEVLOG
+
+- [ ] `nerd devlog new` — interactive session logging with commit auto-capture
+- [ ] `nerd devlog query` — full-text search via SQLite FTS5
+- [ ] `nerd devlog list` — recent entries
+- [ ] `nerd devlog generate` — render DEVLOG.md from SQLite
+- [ ] `.githooks/post-commit` — auto-cache commit data
+
+### MCP server
+
+- [ ] `nerdtime-mcp` binary — stdio MCP server for AI coding agents
+- [ ] Session tools (start, stop, status, list, stats, sync)
+- [ ] Task tools (create, list, matrix, complete, edit)
+- [ ] Devlog tools (log_session, query, get_decisions)
+- [ ] `what_should_i_work_on` tool
+
+### Ship
 
 - [ ] Stripe SDK migration (typed API, drop raw reqwest)
-- [ ] `nerd login` interactive prompt (`rpassword`)
-- [ ] `nerd signup` / `nerd logout`
-- [ ] Landing page at nerdtime.app
+- [ ] Landing page at nerdtime.app with heatmap hero image
+- [ ] Interactive CLI auth (`nerd login` prompt, `nerd signup`, `nerd logout`)
 - [ ] Install script + GitHub release binaries
 - [ ] Production deployment (backend + DB + Redis)
-- [ ] Basic error reporting / monitoring
+- [ ] Upgrade messaging: $10/mo for cloud sync
 
-## Phase 2: Power tools
+## Phase 2: Editor ecosystem
 
-*Features that convert CLI users into paying sync users.*
-
-- [ ] `nerd heatmap` — GitHub-style contribution heatmap
-- [ ] `nerd insights` — per-project breakdown by weekday/hour
-- [ ] `nerd tasks` — todo tracking alongside sessions
-- [ ] `nerd estimate` — estimate vs actual time
-- [ ] `nerd summary` — aggregate by label/project
-- [ ] Labels (JSON array, cross-cutting)
-- [ ] GitHub Issues sync (link, import, close)
-- [ ] `nerd sync --auto` — periodic background sync
-
-## Phase 3: Editor ecosystem
-
-*Meet developers where they live.*
+*Meet developers in their editor.*
 
 - [ ] Neovim plugin — `:NerdtimeStart`, `:NerdtimeStop`, statusline
 - [ ] VS Code extension — status bar, start/stop from command palette
 - [ ] `nerd tui` — Ratatui terminal UI for browsing sessions
+- [ ] `nerd sync --auto` — periodic background sync
 
-## Phase 4: Mobile + AI
+## Phase 3: Mobile + GitHub
 
-*Extend to mobile devices and AI coding agents.*
+*Extend to mobile devices and GitHub integration.*
 
 - [ ] Tauri mobile app (iOS + Android) — view sessions, start/stop
-- [ ] MCP server — expose start/stop/status/sessions as AI tools
+- [ ] GitHub Issues sync (link, import, close tasks from issues)
 - [ ] GitHub OAuth — login via GitHub instead of email/password
+- [ ] SVG heatmap export (for desktop/mobile app)
+
+## Phase 4: Scale
+
+*Team features and deeper intelligence.*
+
 - [ ] Team workspaces (maybe — wait for demand)
 
 ## Never
