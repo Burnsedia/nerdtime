@@ -29,6 +29,16 @@ cargo run -p nerd -- devlog edit <id>                      # edit entry in $EDIT
 cargo run -p nerd -- devlog generate                       # regenerate DEVLOG.md
 cargo run -p nerd -- devlog show <id>                      # view single entry
 cargo run -p nerd -- devlog cache-commit                   # cache commit (post-commit hook)
+cargo run -p nerd -- task add <project> <title> [--q1/--q2/--q3/--q4] [--estimate 2h]  # create task
+cargo run -p nerd -- task list [project]                   # list tasks
+cargo run -p nerd -- task matrix [--project P]             # Eisenhower quadrant view
+cargo run -p nerd -- task complete <id>                    # complete task
+cargo run -p nerd -- task cancel <id>                      # cancel task
+cargo run -p nerd -- task edit <id> [--title ...] [--estimate ...] [--q1]  # edit
+cargo run -p nerd -- start <project> [--task T] [--estimate 2h] [--label L]  # start with task/labels
+cargo run -p nerd -- estimate [task-id] [--project P]     # estimate vs actual
+cargo run -p nerd -- summary [--days N] [--project P] [--label L]  # label aggregation
+cargo run -p nerd -- what-should-i-work-on [--time 2h] [--energy high]  # advisor
 
 # Backend
 cargo run -p nerdtime-api -- start           # run dev server (port 5150)

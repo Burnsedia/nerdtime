@@ -5,7 +5,7 @@ use colored::Colorize;
 const DAY_NAMES: [&str; 7] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const BLOCK_NAMES: [&str; 4] = ["🌅 Morning (6-12)", "☀️ Afternoon (12-18)", "🌙 Evening (18-0)", "🌃 Night (0-6)"];
 
-fn fmt_duration(seconds: i64) -> String {
+pub fn fmt_duration(seconds: i64) -> String {
     let hours = seconds / 3600;
     let mins = (seconds % 3600) / 60;
     let secs = seconds % 60;

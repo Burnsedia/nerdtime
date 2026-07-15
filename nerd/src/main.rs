@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+mod advisor;
 mod config;
 mod db;
 mod devlog;
 mod insights;
+mod tasks;
 
 use anyhow::Result;
+use chrono::Utc;
 use clap::{Parser, Subcommand};
 use colored::Colorize;
 
@@ -22,6 +25,12 @@ enum Commands {
         project: String,
         #[arg(short, long)]
         desc: Option<String>,
+        #[arg(short = 't', long)]
+        task: Option<String>,
+        #[arg(short = 'e', long)]
+        estimate: Option<String>,
+        #[arg(short = 'l', long)]
+        label: Vec<String>,
     },
     /// Stop the active session
     Stop,
@@ -65,6 +74,107 @@ enum Commands {
         #[command(subcommand)]
         action: DevlogCommands,
     },
+    /// Manage tasks with Eisenhower Matrix
+    #[command(subcommand)]
+    Task(TaskCommands),
+    /// Show estimation accuracy for a task or project
+    Estimate {
+        id: Option<String>,
+        #[arg(short, long)]
+        project: Option<String>,
+    },
+    /// Show summary by label
+    Summary {
+        #[arg(short, long)]
+        project: Option<String>,
+        #[arg(short, long)]
+        label: Option<String>,
+        #[arg(short = 'd', long, default_value = "30")]
+        days: i64,
+        #[arg(long)]
+        from: Option<String>,
+        #[arg(long)]
+        to: Option<String>,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Get a suggestion on what to work on right now
+    WhatShouldIWorkOn {
+        #[arg(short, long)]
+        time: Option<String>,
+        #[arg(short, long)]
+        energy: Option<String>,
+        #[arg(short, long)]
+        blocked: Option<String>,
+    },
+}
+
+#[derive(Subcommand)]
+enum TaskCommands {
+    /// Add a new task
+    Add {
+        project: String,
+        title: String,
+        #[arg(short, long)]
+        desc: Option<String>,
+        #[arg(short = 'e', long)]
+        estimate: Option<String>,
+        #[arg(short = 'l', long)]
+        label: Vec<String>,
+        #[arg(long)]
+        urgency: Option<u8>,
+        #[arg(long)]
+        importance: Option<u8>,
+        #[arg(long)]
+        q1: bool,
+        #[arg(long)]
+        q2: bool,
+        #[arg(long)]
+        q3: bool,
+        #[arg(long)]
+        q4: bool,
+    },
+    /// List tasks
+    List {
+        project: Option<String>,
+        #[arg(short, long)]
+        status: Option<String>,
+    },
+    /// View Eisenhower Matrix
+    Matrix {
+        #[arg(short, long)]
+        project: Option<String>,
+    },
+    /// Mark a task as completed
+    Complete {
+        id: String,
+    },
+    /// Cancel a task
+    Cancel {
+        id: String,
+    },
+    /// Edit a task
+    Edit {
+        id: String,
+        #[arg(short, long)]
+        title: Option<String>,
+        #[arg(short = 'e', long)]
+        estimate: Option<String>,
+        #[arg(long)]
+        urgency: Option<u8>,
+        #[arg(long)]
+        importance: Option<u8>,
+        #[arg(long)]
+        q1: bool,
+        #[arg(long)]
+        q2: bool,
+        #[arg(long)]
+        q3: bool,
+        #[arg(long)]
+        q4: bool,
+        #[arg(short = 'l', long)]
+        label: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -97,7 +207,23 @@ fn main() -> Result<()> {
     let conn = db::get_connection()?;
 
     match &cli.command {
-        Commands::Start { project, desc } => db::start_session(&conn, project, desc.as_deref()),
+        Commands::Start { project, desc, task, estimate, label } => {
+            let resolved_task_id = task.as_deref().and_then(|t| db::resolve_task_id(&conn, t).ok());
+            let task_id_ref = resolved_task_id.as_deref();
+            let estimate_secs = estimate.as_deref().map(db::parse_duration).transpose()?.flatten();
+            let parsed_labels: Vec<String> = label.iter().flat_map(|l| l.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty())).collect();
+            let labels_json = if parsed_labels.is_empty() {
+                if let Some(rid) = task_id_ref {
+                    conn.query_row("SELECT labels FROM tasks WHERE id = ?1", rusqlite::params![rid], |row| row.get::<_, Option<String>>(0))
+                        .unwrap_or(None)
+                } else {
+                    None
+                }
+            } else {
+                Some(serde_json::to_string(&parsed_labels)?)
+            };
+            db::start_session(&conn, project, desc.as_deref(), task_id_ref, estimate_secs, labels_json.as_deref())
+        }
         Commands::Stop => db::stop_session(&conn),
         Commands::Status => db::show_status(&conn),
         Commands::Sync => db::sync_sessions(&conn),
@@ -123,6 +249,161 @@ fn main() -> Result<()> {
             DevlogCommands::CacheCommit => devlog::handle_cache_commit(&conn),
             DevlogCommands::Show { id } => devlog::handle_show(&conn, id),
         },
+        Commands::Task(cmd) => handle_task(&conn, cmd),
+        Commands::Estimate { id, project } => handle_estimate(&conn, id.as_deref(), project.as_deref()),
+        Commands::Summary { project, label, days, from, to, json } => handle_summary(&conn, project.as_deref(), label.as_deref(), *days, from.as_deref(), to.as_deref(), *json),
+        Commands::WhatShouldIWorkOn { time, energy, blocked } => handle_advisor(&conn, time.as_deref(), energy.as_deref(), blocked.as_deref()),
+    }
+}
+
+fn handle_task(conn: &rusqlite::Connection, cmd: &TaskCommands) -> Result<()> {
+    match cmd {
+        TaskCommands::Add { project, title, desc, estimate, label, urgency, importance, q1, q2, q3, q4 } => {
+            let est_secs = estimate.as_deref().map(db::parse_duration).transpose()?.flatten();
+            let (u, i) = resolve_eisenhower(*urgency, *importance, *q1, *q2, *q3, *q4, conn)?;
+            let parsed_labels: Vec<String> = label.iter().flat_map(|l| l.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty())).collect();
+            let labels_json = if parsed_labels.is_empty() { None } else { Some(serde_json::to_string(&parsed_labels)?) };
+            let id = db::add_task(conn, project, title, desc.as_deref(), est_secs, u, i, labels_json.as_deref())?;
+            println!("{} Task created: {} ({})", "✓".green(), title.bold(), id[..7].cyan());
+            Ok(())
+        }
+        TaskCommands::List { project, status } => {
+            let tasks = db::list_tasks(conn, project.as_deref(), status.as_deref())?;
+            print!("{}", tasks::render_task_list(&tasks));
+            Ok(())
+        }
+        TaskCommands::Matrix { project } => {
+            let tasks = db::list_tasks(conn, project.as_deref(), Some("active"))?;
+            print!("{}", tasks::render_matrix(&tasks));
+            Ok(())
+        }
+        TaskCommands::Complete { id } => db::complete_task(conn, id),
+        TaskCommands::Cancel { id } => db::cancel_task(conn, id),
+        TaskCommands::Edit { id, title, estimate, urgency, importance, q1, q2, q3, q4, label } => {
+            let est = estimate.as_deref().map(db::parse_duration).transpose()?;
+            let (u, i) = resolve_eisenhower(*urgency, *importance, *q1, *q2, *q3, *q4, conn)?;
+            let labels: Option<Option<&str>> = label.as_deref().map(|l| {
+                if l.is_empty() { None }
+                else { Some(l) }
+            });
+            db::edit_task(conn, id, title.as_deref(), est, Some(u), Some(i), labels)?;
+            Ok(())
+        }
+    }
+}
+
+fn resolve_eisenhower(urgency: Option<u8>, importance: Option<u8>, q1: bool, q2: bool, q3: bool, q4: bool, _conn: &rusqlite::Connection) -> Result<(u8, u8)> {
+    if q1 { return Ok((5, 5)); }
+    if q2 { return Ok((2, 5)); }
+    if q3 { return Ok((5, 2)); }
+    if q4 { return Ok((2, 2)); }
+    let u = urgency.unwrap_or(3);
+    let i = importance.unwrap_or(3);
+    Ok((u, i))
+}
+
+fn handle_estimate(conn: &rusqlite::Connection, id: Option<&str>, project: Option<&str>) -> Result<()> {
+    if let Some(task_id) = id {
+        let (task, sessions) = db::task_estimate(conn, task_id)?;
+        print!("{}", tasks::render_estimate(&task, &sessions));
+    } else if let Some(proj) = project {
+        let tasks = db::list_tasks(conn, Some(proj), None)?;
+        print_task_project_estimate(&tasks, proj);
+    } else {
+        let tasks = db::list_tasks(conn, None, None)?;
+        print!("{}", tasks::render_task_list(&tasks));
+    }
+    Ok(())
+}
+
+fn print_task_project_estimate(tasks: &[db::TaskRow], project: &str) {
+    println!("\n  Project: {}\n", project.bold());
+    let mut total_est: i64 = 0;
+    let mut total_act: i64 = 0;
+
+    for t in tasks {
+        let est_str = t.estimated_seconds.map(insights::fmt_duration).unwrap_or_else(|| "—".to_string());
+        let act_str = insights::fmt_duration(t.actual_seconds);
+        if let Some(est) = t.estimated_seconds {
+            total_est += est;
+            total_act += t.actual_seconds;
+            let status = if t.actual_seconds <= est {
+                format!("{} under", "✓".green())
+            } else {
+                format!("{} over by {}", "✗".red(), insights::fmt_duration(t.actual_seconds - est))
+            };
+            println!("  {:<28} {} est → {} act  {}", t.title.bold(), est_str.cyan(), act_str, status);
+        } else {
+            println!("  {:<28} —         → {} act", t.title.bold(), act_str);
+        }
+    }
+
+    println!();
+    println!("  {}", "Project totals:".bold());
+    println!("  {} tracked across {} tasks", insights::fmt_duration(total_act).bold(), tasks.len());
+    if total_est > 0 {
+        println!("  {} total estimate", insights::fmt_duration(total_est).bold());
+        let remaining = total_est - total_act;
+        if remaining > 0 {
+            println!("  {} remaining (in active tasks)", insights::fmt_duration(remaining).bold());
+        }
+    }
+}
+
+fn handle_summary(conn: &rusqlite::Connection, project: Option<&str>, label: Option<&str>, days: i64, from: Option<&str>, to: Option<&str>, _json: bool) -> Result<()> {
+    let end = to.unwrap_or("2099-12-31").to_string();
+    let start = match from {
+        Some(s) => s.to_string(),
+        None => {
+            let d = Utc::now() - chrono::Duration::days(days);
+            d.format("%Y-%m-%d").to_string()
+        }
+    };
+
+    let rows = db::label_summary(conn, project, label, &start, &end)?;
+    if rows.is_empty() {
+        println!("  No sessions found for the given filters.");
+        return Ok(());
+    }
+
+    println!("\n  Summary ({} to {}):\n", start, end);
+    println!("  {:<16} {:<10} {}", "Label".bold(), "Time".bold(), "Projects".bold());
+    let mut total_seconds: i64 = 0;
+    for (lbl, secs, projs) in &rows {
+        println!(
+            "  {:<16} {:<10} {}",
+            lbl.cyan(),
+            insights::fmt_duration(*secs).bold(),
+            projs.join(", "),
+        );
+        total_seconds += secs;
+    }
+    println!("  {}", "─".repeat(50));
+    println!(
+        "  {:<16} {:<10} {} label(s)",
+        "Total".bold(),
+        insights::fmt_duration(total_seconds).bold(),
+        rows.len(),
+    );
+    println!();
+    Ok(())
+}
+
+fn handle_advisor(conn: &rusqlite::Connection, time: Option<&str>, energy: Option<&str>, blocked: Option<&str>) -> Result<()> {
+    match (time, energy) {
+        (Some(t), Some(e)) => {
+            let available_seconds = db::parse_duration(t)?.unwrap_or(3600);
+            let input = advisor::AdvisorInput {
+                available_seconds,
+                energy: e.to_string(),
+                blocked: blocked.map(|s| s.to_string()),
+            };
+            let result = advisor::decide(conn, &input)?;
+            println!("\n  {}: {}", "Suggestion".bold(), result.task_title.bold());
+            println!("  {}", result.reason);
+            Ok(())
+        }
+        _ => advisor::run_interactive(conn),
     }
 }
 

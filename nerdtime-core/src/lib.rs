@@ -13,6 +13,9 @@ pub struct Session {
     pub started_at: DateTime<Utc>,
     pub ended_at: Option<DateTime<Utc>>,
     pub is_synced: bool,
+    pub task_id: Option<String>,
+    pub estimated_seconds: Option<i64>,
+    pub labels: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -24,4 +27,7 @@ pub struct SyncPayload {
     pub description: Option<String>,
     pub started_at: DateTime<Utc>,
     pub ended_at: Option<DateTime<Utc>>,
+    pub task_id: Option<String>,
+    pub estimated_seconds: Option<i64>,
+    pub labels: Option<String>,
 }

@@ -36,12 +36,12 @@ Product phases for nerdtime, the terminal-native quantified-self system for deve
 - [x] `nerd devlog query` — search past context/decisions
 - [x] `nerd devlog generate` — auto-render DEVLOG.md from SQLite
 - [x] Post-commit hook — auto-cache commit data for devlog
-- [ ] `nerd task add/list/edit/complete/cancel` — task CRUD
-- [ ] `nerd task matrix` — Eisenhower Matrix view (Q1-Q4)
-- [ ] `nerd what-should-i-work-on` — deterministic decision tree advisor
-- [ ] `nerd summary` — aggregate by label/project
-- [ ] `nerd estimate` — estimate vs actual time
-- [ ] Labels (JSON array, cross-cutting projects and tasks)
+- [x] `nerd task add/list/edit/complete/cancel` — task CRUD
+- [x] `nerd task matrix` — Eisenhower Matrix view (Q1-Q4)
+- [x] `nerd what-should-i-work-on` — deterministic decision tree advisor
+- [x] `nerd summary` — aggregate by label/project
+- [x] `nerd estimate` — estimate vs actual time
+- [x] Labels (JSON array, cross-cutting projects and tasks)
 - [ ] GitHub Issues sync (link, import, close)
 
 ## Phase 2: Launch polish

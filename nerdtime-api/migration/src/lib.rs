@@ -5,6 +5,7 @@ pub use sea_orm_migration::prelude::*;
 mod m20220101_000001_users;
 mod m20260101_000001_sessions;
 mod m20260103_000001_subscriptions;
+mod m20260715_000001_session_extras;
 
 pub struct Migrator;
 
@@ -15,6 +16,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20220101_000001_users::Migration),
             Box::new(m20260101_000001_sessions::Migration),
             Box::new(m20260103_000001_subscriptions::Migration),
+            Box::new(m20260715_000001_session_extras::Migration),
             // inject-above (do not remove this comment)
         ]
     }
