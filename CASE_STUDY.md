@@ -99,6 +99,49 @@ If Stripe returned an error response, the client got `{"url": ""}` — no error 
 
 **8. No sync payload size limit** — The sync endpoint accepts unbounded arrays of session data.
 
+## Scope Creep in AI-Assisted Development
+
+**Where it started:**
+
+> A CLI time tracker with cloud sync and Stripe billing. Ship it in one session.
+
+**Where it is now (same project, same week):**
+
+- Heatmap + Insights
+- DEVLOG (structured logging)
+- Tasks + Eisenhower Matrix + Analysis Paralysis Advisor
+- MCP Server (12 tools, zero token cost)
+- Labels + Summary + Estimates
+- GitHub Issues sync
+- Desktop app with SVG heatmaps
+- Mobile app (Tauri, iOS + Android)
+- Team workspaces (maybe)
+
+That's 3x the original MVP scope, and none of it was planned at session zero.
+
+**Why AI accelerates scope creep:**
+
+- Saying "yes" costs nothing — the AI writes the spec in 30 seconds
+- Every feature spawns a sub‑feature (tasks → Eisenhower → advisor → MCP tools)
+- "While we're here" is the default mode of conversation
+- No one has to estimate the work — the AI just says "~2 hours" every time
+
+**The pattern:**
+
+```
+User: "Should I add X?"
+AI: "Here's why X is essential, here's a spec, ~2 hours."
+User: "What about Y?"
+AI: "Y builds on X, here's how, ~2 hours."
+Result: 3x scope, zero additional timeline.
+```
+
+**The fix (not yet implemented):**
+
+- Freeze the spec at session start. No new features until current batch ships.
+- Track "spec'd vs built" ratio. If spec files outnumber working features, stop specing.
+- Ship something *before* adding the next thing. The CLI works today. Ship it.
+
 ## Lessons Learned
 
 ### For AI-Assisted Development
