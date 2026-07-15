@@ -282,3 +282,94 @@ Sync rejected (403). An active subscription is required. Visit https://nerdtime.
 ---
 
 *Session ended with workspace compiling cleanly (`cargo build --workspace`), fmt clean, clippy clean (4 pre-existing warnings). 17 existing commits + all changes above.*
+
+---
+
+## 2026-07-15: MVP Launch Planning & Stripe SDK Evaluation
+
+### Context
+
+New session. Asked for a project summary — got a full recap of architecture, completed work, active state, and next-move priorities.
+
+### Stripe SDK Migration Decision
+
+Evaluated whether to switch billing from raw `reqwest` + manual HMAC to the `async-stripe` Rust SDK:
+
+**Tradeoffs considered:**
+
+| Concern | Raw reqwest (current) | `async-stripe` SDK |
+|---|---|---|
+| Deps added | `reqwest`, `hmac`, `sha2`, `hex` | `async-stripe` only |
+| Billing code size | ~270 lines | ~150 lines (estimated) |
+| Type safety | None (raw JSON, `unwrap_or("")` everywhere) | Full Rust types |
+| Webhook verification | 50 lines manual HMAC | `Webhook::construct_event()` |
+| Build time | Faster | Slower (large crate) |
+
+**Decision:** Worth switching — fewer bugs, less code, no manual crypto. Created `spec/stripe-sdk-migration-plan.md` with full migration strategy.
+
+### MVP Readiness Assessment
+
+Questioned how much of the OG MVP remains. Analysis:
+
+- **3,448 total lines** of Rust + TOML across the project
+- Migration touches **2 files** — `billing.rs` (297 lines) and `Cargo.toml` (deps only)
+- **~9%** of codebase affected, **91% untouched** (CLI, auth, sync, sessions, stats, subscriptions model, migrations, configs, all specs/plugins/docs)
+
+**Decision:** The MVP is 90% done. The Stripe SDK migration makes it production-ready but doesn't add a feature. Could ship today with raw reqwest.
+
+### MVP vs Nice-to-Haves
+
+Evaluated remaining planned features:
+
+| Feature | MVP? | Verdict |
+|---|---|---|
+| Stripe SDK migration | Yes | Production-hardening, ship it |
+| CLI interactive auth | No | `nerd login <token>` is sufficient |
+| Heatmap / insights | No | Cool demo, zero revenue impact |
+| Tasks / labels | No | Scope creep for v2 |
+| Editor plugins | No | Need users first |
+| TUI / MCP / Tauri | No | Whole new surfaces, deferred |
+
+**Decision:** Ship MVP now. Validate demand first, build features users actually ask for.
+
+### Launch Plan
+
+Created `spec/mvp-launch-plan.md` — a 3-week rollout:
+
+- **Week 1:** Stripe SDK migration, smoke test full flow, production deployment (PostgreSQL + Redis + backend)
+- **Week 2:** Landing page at nerdtime.app, install script, GitHub release binaries, quickstart docs
+- **Week 3:** Soft launch (HN / Reddit), monitor signups and payments, fix bugs
+
+Success targets: 50 signups, >5% paid conversion, 500 CLI downloads, 10 DAU.
+
+### Roadmap
+
+Created `ROADMAP.md` with 5 phases:
+
+| Phase | Theme | Key features |
+|---|---|---|
+| Phase 0 | MVP ✅ | CLI, sync, billing (all shipped) |
+| Phase 1 | Launch polish | SDK migration, interactive auth, landing page, deploy |
+| Phase 2 | Power tools | Heatmap, tasks, labels, GitHub sync |
+| Phase 3 | Editor ecosystem | Neovim, VS Code, TUI |
+| Phase 4 | Mobile + AI | Tauri app, MCP server, GitHub OAuth |
+
+Also documented explicit "never" items: Windows support, source-available licensing, sponsorships.
+
+### Files Created
+
+```
+NEW: ROADMAP.md                         — 5-phase product roadmap
+NEW: spec/mvp-launch-plan.md            — 3-week launch rollout checklist
+NEW: spec/stripe-sdk-migration-plan.md  — raw reqwest → async-stripe migration spec
+```
+
+### Git Commits
+
+```
+3f6ab89  docs: add project roadmap with phased feature plan
+ae6a240  docs: add MVP launch plan with production-hardening and rollout checklist
+8a4afa5  docs: add Stripe SDK migration plan from raw reqwest to async-stripe
+```
+
+*All three pushed to origin/master. No code changes — pure planning and documentation.*
