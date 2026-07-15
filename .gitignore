@@ -1,0 +1,5 @@
+target/
+*.pyc
+.DS_Store
+.env
+nerdtime-api/src/mailers/auth/*/.gitkeep
