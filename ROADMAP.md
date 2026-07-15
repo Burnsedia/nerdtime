@@ -32,10 +32,10 @@ Product phases for nerdtime, the terminal-native quantified-self system for deve
 
 - [ ] `nerd heatmap` — terminal heatmap (GitHub-style contribution grid)
 - [ ] `nerd insights` — per-project breakdown by weekday/hour
-- [ ] `nerd devlog new` — structured session logging CLI
-- [ ] `nerd devlog query` — search past context/decisions
-- [ ] `nerd devlog generate` — auto-render DEVLOG.md from SQLite
-- [ ] Post-commit hook — auto-cache commit data for devlog
+- [x] `nerd devlog new` — structured session logging CLI
+- [x] `nerd devlog query` — search past context/decisions
+- [x] `nerd devlog generate` — auto-render DEVLOG.md from SQLite
+- [x] Post-commit hook — auto-cache commit data for devlog
 - [ ] `nerd task add/list/edit/complete/cancel` — task CRUD
 - [ ] `nerd task matrix` — Eisenhower Matrix view (Q1-Q4)
 - [ ] `nerd what-should-i-work-on` — deterministic decision tree advisor

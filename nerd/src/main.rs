@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 mod config;
 mod db;
+mod devlog;
 mod insights;
 
 use anyhow::Result;
@@ -59,6 +60,36 @@ enum Commands {
         #[arg(short, long)]
         project: Option<String>,
     },
+    /// Structured development logging
+    Devlog {
+        #[command(subcommand)]
+        action: DevlogCommands,
+    },
+}
+
+#[derive(Subcommand)]
+enum DevlogCommands {
+    /// Create a new devlog entry (interactive)
+    New,
+    /// Edit an existing entry
+    Edit { id: String },
+    /// Search entries by text or tags
+    Query {
+        query: String,
+        #[arg(short, long)]
+        tags: Option<String>,
+    },
+    /// List recent entries
+    List {
+        #[arg(short, long, default_value = "10")]
+        limit: usize,
+    },
+    /// Regenerate DEVLOG.md from the database
+    Generate,
+    /// Cache current commit data (used by post-commit hook)
+    CacheCommit,
+    /// Show a single entry
+    Show { id: String },
 }
 
 fn main() -> Result<()> {
@@ -83,6 +114,15 @@ fn main() -> Result<()> {
             print!("{}", insights::render_insights(&data));
             Ok(())
         }
+        Commands::Devlog { action } => match action {
+            DevlogCommands::New => devlog::handle_new(&conn),
+            DevlogCommands::Edit { id } => devlog::handle_edit(&conn, id),
+            DevlogCommands::Query { query, tags } => devlog::handle_query(&conn, query, tags.as_deref()),
+            DevlogCommands::List { limit } => devlog::handle_list(&conn, *limit),
+            DevlogCommands::Generate => devlog::handle_generate(&conn),
+            DevlogCommands::CacheCommit => devlog::handle_cache_commit(&conn),
+            DevlogCommands::Show { id } => devlog::handle_show(&conn, id),
+        },
     }
 }
 
