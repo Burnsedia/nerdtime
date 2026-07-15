@@ -36,10 +36,13 @@ fluent-templates = { version = "0.13", features = ["tera"] }
 unic-langid = { version = "0.9" }
 # /view engine
 axum-extra = { version = "0.10", features = ["form"] }
-reqwest = { version = "0.12", features = ["json"] }
-hmac = "0.12"
-sha2 = "0.10"
-hex = "0.4"
+async-stripe = { version = "0.41", default-features = false, features = [
+  "runtime-tokio-hyper-rustls",
+  "checkout",
+  "billing",
+  "webhook-events",
+  "connect",
+] }
 
 [[bin]]
 name = "nerdtime_api-cli"
