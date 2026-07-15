@@ -1,0 +1,32 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: loco
+      POSTGRES_PASSWORD: loco
+      POSTGRES_DB: nerdtime-api_development
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata_dev:/var/lib/postgresql/data
+
+  api:
+    build:
+      context: .
+      dockerfile: nerdtime-api/Dockerfile.dev
+    environment:
+      DATABASE_URL: postgres://loco:loco@postgres:5432/nerdtime-api_development
+      JWT_SECRET: WqOAD0KPFoE8YgKw7Ok1
+      HOST: http://localhost:5150
+      PORT: "5150"
+    ports:
+      - "5150:5150"
+    volumes:
+      - ./nerdtime-api:/app/nerdtime-api
+      - ./nerdtime-core:/app/nerdtime-core
+    depends_on:
+      postgres:
+        condition: service_started
+
+volumes:
+  pgdata_dev:

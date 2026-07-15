@@ -1,0 +1,55 @@
+services:
+  traefik:
+    image: traefik:v3.3
+    command:
+      - "--providers.docker=true"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.email=admin@nerdtime.dev"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "letsencrypt:/letsencrypt"
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: nerdtime
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: nerdtime_production
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nerdtime"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: nerdtime-api/Dockerfile
+    environment:
+      DATABASE_URL: postgres://nerdtime:${DB_PASSWORD}@postgres:5432/nerdtime_production
+      JWT_SECRET: ${JWT_SECRET}
+      HOST: https://nerdtime.dev
+      PORT: "3000"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.nerdtime.rule=Host(`nerdtime.dev`)"
+      - "traefik.http.routers.nerdtime.entrypoints=websecure"
+      - "traefik.http.routers.nerdtime.tls.certresolver=letsencrypt"
+      - "traefik.http.services.nerdtime.loadbalancer.server.port=3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  letsencrypt:
