@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 use chrono::{offset::Local, Duration};
 use insta::assert_debug_snapshot;
 use loco_rs::testing::prelude::*;

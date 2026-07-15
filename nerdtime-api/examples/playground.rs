@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 #[allow(unused_imports)]
 use loco_rs::{cli::playground, prelude::*};
 use nerdtime_api::app::App;

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 use insta::{assert_debug_snapshot, with_settings};
 use loco_rs::testing::prelude::*;
 use nerdtime_api::{app::App, models::users};

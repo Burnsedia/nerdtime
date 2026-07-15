@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 use axum::http::{HeaderName, HeaderValue};
 use loco_rs::{app::AppContext, TestServer};
 use nerdtime_api::{models::users, views::auth::LoginResponse};

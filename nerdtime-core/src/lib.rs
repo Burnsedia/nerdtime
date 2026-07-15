@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

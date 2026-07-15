@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 #![allow(elided_lifetimes_in_paths)]
 #![allow(clippy::wildcard_imports)]
 pub use sea_orm_migration::prelude::*;

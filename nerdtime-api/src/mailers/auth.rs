@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // auth mailer
 #![allow(non_upper_case_globals)]
 

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 use loco_rs::prelude::*;
 use nerdtime_core::SyncPayload;
 use uuid::Uuid;

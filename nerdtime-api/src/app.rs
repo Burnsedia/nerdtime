@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 use async_trait::async_trait;
 use loco_rs::{
     app::{AppContext, Hooks, Initializer},
