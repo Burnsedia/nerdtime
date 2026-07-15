@@ -48,6 +48,13 @@ cargo clippy --all-features -- -D warnings
 - **Controllers** export `pub fn routes() -> Routes` and are registered in `src/app.rs`
 - **Auth**: JWT via `loco_rs::auth::jwt`; all API endpoints except `/api/health` require `auth::JWT` extractor
 
+## Git
+
+- **Commit logically** — never lump unrelated changes into one commit. Separate concerns (e.g. CLI changes → one commit, backend → another, Docker → another).
+- **Write meaningful messages** — use conventional commits (`feat:`, `fix:`, `chore:`, `docs:`, `refactor:`) followed by a brief description of what and why.
+- **Never force-push** or amend pushed commits.
+- **Review before commit** — run `git status`, `git diff`, and `git log --oneline -5` first. Only stage intended files.
+
 ## Quirks
 
 - `include_dir!` **must** use `$CARGO_MANIFEST_DIR/` prefix (e.g. `include_dir!("$CARGO_MANIFEST_DIR/src/mailers/auth/welcome")`) — the macro resolves relative to CWD, not crate root
