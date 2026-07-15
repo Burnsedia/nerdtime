@@ -2,13 +2,16 @@
 
 ## Project
 
-Two binaries, one shared types crate. CLI is offline-first; backend is a Loco API.
+nerdtime is **quantified self for developers** — time tracking + commit intelligence + Eisenhower task prioritization + development logging + AI agent integration. One CLI, one SQLite database, optional cloud sync.
 
 ```
 nerd/               # CLI client (clap + rusqlite + reqwest blocking)
 nerdtime-core/      # shared Session / SyncPayload types (serde + chrono + uuid)
 nerdtime-api/       # Loco SaaS backend (Axum + SeaORM + PostgreSQL)
 nerdtime-api/migration/  # SeaORM migrations
+spec/               # Implementation plans for all features
+ROADMAP.md          # Product phases and priorities
+DEVLOG.md           # Development history (append after every commit)
 ```
 
 ## Commands
@@ -65,6 +68,21 @@ STRIPE_PRICE_ID=
 - `Model::is_active()` returns `true` for `free`, `active`, `trialing` statuses
 - `find_or_create()` auto-creates a `free` tier row on first access
 
+### Tasks & Eisenhower Matrix
+
+- Tasks live in the CLI's SQLite (`data.db`) — not synced to backend (local-only concept)
+- Each task has `urgency` (1-5) and `importance` (1-5); quadrant is computed: `(urgency > 3, importance > 3)` → Q1-Q4
+- `--q1`/`--q2`/`--q3`/`--q4` shorthand flags map to (5/5, 1/5, 5/1, 1/1)
+- `nerd what-should-i-work-on` uses a deterministic decision tree (time, energy, blockers) — no LLM
+- See `spec/nerdtime-tasks.md`
+
+### DEVLOG
+
+- `nerd devlog` subcommand with `new`/`edit`/`query`/`list`/`generate`
+- Post-commit hook auto-caches git data; user fills narrative via interactive prompt
+- DEVLOG.md is generated from SQLite — never edited manually
+- See `spec/nerdtime-devlog.md`
+
 ### SaaS / Self-Host Deployment
 
 Same binary serves both models — no compile-time feature flags:
@@ -76,11 +94,7 @@ Same binary serves both models — no compile-time feature flags:
 
 ### MCP Server (Planned)
 
-An MCP (Model Context Protocol) server exposing nerdtime CLI commands as tools is planned. It does not exist yet.
-
-Proposed tools: `start_tracking`, `stop_tracking`, `get_status`, `list_sessions`, `get_stats`, `sync`.
-
-Would use the same backing store (`~/.config/nerdtime/data.db`, SQLite) as the CLI. Could be a standalone binary or a `nerd mcp` subcommand.
+MCP server exposing nerdtime as tools for AI agents. 15 tools planned: sessions (6), tasks (5), devlog (3), what_should_i_work_on (1). See `spec/nerdtime-mcp-server.md`.
 
 ## API Endpoints
 
@@ -108,6 +122,7 @@ Stripe integration uses raw `reqwest` calls to Stripe REST API (not the `stripe`
 - **Write meaningful messages** — use conventional commits (`feat:`, `fix:`, `chore:`, `docs:`, `refactor:`) followed by a brief description of what and why.
 - **Never force-push** or amend pushed commits.
 - **Review before commit** — run `git status`, `git diff`, and `git log --oneline -5` first. Only stage intended files.
+- **Log every commit in DEVLOG.md** — after each commit (or batch of related commits), append a brief entry to `DEVLOG.md` describing what changed and why. Stage, commit, and push separately.
 
 ## Licensing
 
