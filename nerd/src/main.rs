@@ -3,10 +3,11 @@ mod advisor;
 mod config;
 mod db;
 mod devlog;
+mod github;
 mod insights;
 mod tasks;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use chrono::Utc;
 use clap::{Parser, Subcommand};
 use colored::Colorize;
@@ -31,6 +32,8 @@ enum Commands {
         estimate: Option<String>,
         #[arg(short = 'l', long)]
         label: Vec<String>,
+        #[arg(short = 'i', long)]
+        issue: Option<String>,
     },
     /// Stop the active session
     Stop,
@@ -148,11 +151,11 @@ enum TaskCommands {
     /// Mark a task as completed
     Complete {
         id: String,
+        #[arg(long)]
+        close_issue: bool,
     },
     /// Cancel a task
-    Cancel {
-        id: String,
-    },
+    Cancel { id: String },
     /// Edit a task
     Edit {
         id: String,
@@ -174,6 +177,19 @@ enum TaskCommands {
         q4: bool,
         #[arg(short = 'l', long)]
         label: Option<String>,
+    },
+    /// Import GitHub issues as tasks
+    ImportGithub {
+        #[arg(short, long)]
+        repo: Option<String>,
+        #[arg(short, long)]
+        issue: Option<i64>,
+        #[arg(short, long)]
+        label: Option<String>,
+        #[arg(short, long)]
+        milestone: Option<String>,
+        #[arg(long)]
+        dry_run: bool,
     },
 }
 
@@ -207,22 +223,93 @@ fn main() -> Result<()> {
     let conn = db::get_connection()?;
 
     match &cli.command {
-        Commands::Start { project, desc, task, estimate, label } => {
-            let resolved_task_id = task.as_deref().and_then(|t| db::resolve_task_id(&conn, t).ok());
-            let task_id_ref = resolved_task_id.as_deref();
-            let estimate_secs = estimate.as_deref().map(db::parse_duration).transpose()?.flatten();
-            let parsed_labels: Vec<String> = label.iter().flat_map(|l| l.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty())).collect();
+        Commands::Start {
+            project,
+            desc,
+            task,
+            estimate,
+            label,
+            issue,
+        } => {
+            let resolved_task_id = task
+                .as_deref()
+                .and_then(|t| db::resolve_task_id(&conn, t).ok());
+            // handle --issue flag
+            let issue_task_id = if let Some(issue_ref) = issue {
+                let cfg = config::load().ok();
+                let detected_repo = github::detect_repo().ok();
+                let default_repo = cfg.as_ref().and_then(|c| c.default_github_repo.as_deref());
+                let repo = detected_repo.as_deref().or(default_repo);
+                let (gh_repo, gh_number) = github::parse_issue_ref(issue_ref, repo)?;
+                if let Some(existing) = db::find_task_by_github_issue(&conn, &gh_repo, gh_number)? {
+                    Some(existing)
+                } else {
+                    let token = cfg.as_ref().and_then(|c| c.github_token.as_deref());
+                    let issue_data = github::get_issue(&gh_repo, gh_number, token)?;
+                    let title = issue_data["title"]
+                        .as_str()
+                        .unwrap_or("untitled")
+                        .to_string();
+                    let body = issue_data["body"].as_str().unwrap_or("");
+                    let tid = db::add_task(
+                        &conn,
+                        project,
+                        &title,
+                        Some(body),
+                        None,
+                        3,
+                        3,
+                        None,
+                        Some(&gh_repo),
+                        Some(gh_number),
+                    )?;
+                    println!(
+                        "  {} Created task for GitHub issue #{}: {}",
+                        "+".green(),
+                        gh_number,
+                        title.bold()
+                    );
+                    Some(tid)
+                }
+            } else {
+                None
+            };
+            let task_id_ref = resolved_task_id.as_deref().or(issue_task_id.as_deref());
+            let estimate_secs = estimate
+                .as_deref()
+                .map(db::parse_duration)
+                .transpose()?
+                .flatten();
+            let parsed_labels: Vec<String> = label
+                .iter()
+                .flat_map(|l| {
+                    l.split(',')
+                        .map(|s| s.trim().to_string())
+                        .filter(|s| !s.is_empty())
+                })
+                .collect();
             let labels_json = if parsed_labels.is_empty() {
                 if let Some(rid) = task_id_ref {
-                    conn.query_row("SELECT labels FROM tasks WHERE id = ?1", rusqlite::params![rid], |row| row.get::<_, Option<String>>(0))
-                        .unwrap_or(None)
+                    conn.query_row(
+                        "SELECT labels FROM tasks WHERE id = ?1",
+                        rusqlite::params![rid],
+                        |row| row.get::<_, Option<String>>(0),
+                    )
+                    .unwrap_or(None)
                 } else {
                     None
                 }
             } else {
                 Some(serde_json::to_string(&parsed_labels)?)
             };
-            db::start_session(&conn, project, desc.as_deref(), task_id_ref, estimate_secs, labels_json.as_deref())
+            db::start_session(
+                &conn,
+                project,
+                desc.as_deref(),
+                task_id_ref,
+                estimate_secs,
+                labels_json.as_deref(),
+            )
         }
         Commands::Stop => db::stop_session(&conn),
         Commands::Status => db::show_status(&conn),
@@ -243,28 +330,99 @@ fn main() -> Result<()> {
         Commands::Devlog { action } => match action {
             DevlogCommands::New => devlog::handle_new(&conn),
             DevlogCommands::Edit { id } => devlog::handle_edit(&conn, id),
-            DevlogCommands::Query { query, tags } => devlog::handle_query(&conn, query, tags.as_deref()),
+            DevlogCommands::Query { query, tags } => {
+                devlog::handle_query(&conn, query, tags.as_deref())
+            }
             DevlogCommands::List { limit } => devlog::handle_list(&conn, *limit),
             DevlogCommands::Generate => devlog::handle_generate(&conn),
             DevlogCommands::CacheCommit => devlog::handle_cache_commit(&conn),
             DevlogCommands::Show { id } => devlog::handle_show(&conn, id),
         },
         Commands::Task(cmd) => handle_task(&conn, cmd),
-        Commands::Estimate { id, project } => handle_estimate(&conn, id.as_deref(), project.as_deref()),
-        Commands::Summary { project, label, days, from, to, json } => handle_summary(&conn, project.as_deref(), label.as_deref(), *days, from.as_deref(), to.as_deref(), *json),
-        Commands::WhatShouldIWorkOn { time, energy, blocked } => handle_advisor(&conn, time.as_deref(), energy.as_deref(), blocked.as_deref()),
+        Commands::Estimate { id, project } => {
+            handle_estimate(&conn, id.as_deref(), project.as_deref())
+        }
+        Commands::Summary {
+            project,
+            label,
+            days,
+            from,
+            to,
+            json,
+        } => handle_summary(
+            &conn,
+            project.as_deref(),
+            label.as_deref(),
+            *days,
+            from.as_deref(),
+            to.as_deref(),
+            *json,
+        ),
+        Commands::WhatShouldIWorkOn {
+            time,
+            energy,
+            blocked,
+        } => handle_advisor(
+            &conn,
+            time.as_deref(),
+            energy.as_deref(),
+            blocked.as_deref(),
+        ),
     }
 }
 
 fn handle_task(conn: &rusqlite::Connection, cmd: &TaskCommands) -> Result<()> {
     match cmd {
-        TaskCommands::Add { project, title, desc, estimate, label, urgency, importance, q1, q2, q3, q4 } => {
-            let est_secs = estimate.as_deref().map(db::parse_duration).transpose()?.flatten();
+        TaskCommands::Add {
+            project,
+            title,
+            desc,
+            estimate,
+            label,
+            urgency,
+            importance,
+            q1,
+            q2,
+            q3,
+            q4,
+        } => {
+            let est_secs = estimate
+                .as_deref()
+                .map(db::parse_duration)
+                .transpose()?
+                .flatten();
             let (u, i) = resolve_eisenhower(*urgency, *importance, *q1, *q2, *q3, *q4, conn)?;
-            let parsed_labels: Vec<String> = label.iter().flat_map(|l| l.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty())).collect();
-            let labels_json = if parsed_labels.is_empty() { None } else { Some(serde_json::to_string(&parsed_labels)?) };
-            let id = db::add_task(conn, project, title, desc.as_deref(), est_secs, u, i, labels_json.as_deref())?;
-            println!("{} Task created: {} ({})", "✓".green(), title.bold(), id[..7].cyan());
+            let parsed_labels: Vec<String> = label
+                .iter()
+                .flat_map(|l| {
+                    l.split(',')
+                        .map(|s| s.trim().to_string())
+                        .filter(|s| !s.is_empty())
+                })
+                .collect();
+            let labels_json = if parsed_labels.is_empty() {
+                None
+            } else {
+                Some(serde_json::to_string(&parsed_labels)?)
+            };
+            let id = db::add_task(
+                conn,
+                project,
+                title,
+                desc.as_deref(),
+                est_secs,
+                u,
+                i,
+                labels_json.as_deref(),
+                None,
+                None,
+            )?;
+            println!(
+                "{} Task created: {} ({})",
+                "✓".green(),
+                title.bold(),
+                id[..7].cyan()
+            );
             Ok(())
         }
         TaskCommands::List { project, status } => {
@@ -277,32 +435,120 @@ fn handle_task(conn: &rusqlite::Connection, cmd: &TaskCommands) -> Result<()> {
             print!("{}", tasks::render_matrix(&tasks));
             Ok(())
         }
-        TaskCommands::Complete { id } => db::complete_task(conn, id),
+        TaskCommands::Complete { id, close_issue } => db::complete_task(conn, id, *close_issue),
         TaskCommands::Cancel { id } => db::cancel_task(conn, id),
-        TaskCommands::Edit { id, title, estimate, urgency, importance, q1, q2, q3, q4, label } => {
+        TaskCommands::Edit {
+            id,
+            title,
+            estimate,
+            urgency,
+            importance,
+            q1,
+            q2,
+            q3,
+            q4,
+            label,
+        } => {
             let est = estimate.as_deref().map(db::parse_duration).transpose()?;
             let (u, i) = resolve_eisenhower(*urgency, *importance, *q1, *q2, *q3, *q4, conn)?;
-            let labels: Option<Option<&str>> = label.as_deref().map(|l| {
-                if l.is_empty() { None }
-                else { Some(l) }
-            });
+            let labels: Option<Option<&str>> =
+                label
+                    .as_deref()
+                    .map(|l| if l.is_empty() { None } else { Some(l) });
             db::edit_task(conn, id, title.as_deref(), est, Some(u), Some(i), labels)?;
+            Ok(())
+        }
+        TaskCommands::ImportGithub {
+            repo,
+            issue,
+            label,
+            milestone,
+            dry_run,
+        } => {
+            let cfg = config::load().ok();
+            let detected_repo = github::detect_repo().ok();
+            let config_repo = cfg.as_ref().and_then(|c| c.default_github_repo.as_deref());
+            let gh_repo = repo.as_deref().or(detected_repo.as_deref()).or(config_repo)
+                .context("Could not determine repository. Use --repo, set default_github_repo, or run from a git repo with a GitHub remote.")?;
+            let token = cfg.as_ref().and_then(|c| c.github_token.as_deref());
+
+            let issues: Vec<serde_json::Value> = if let Some(single) = issue {
+                let issue_data = github::get_issue(gh_repo, *single, token)?;
+                vec![issue_data]
+            } else {
+                github::list_issues(gh_repo, label.as_deref(), milestone.as_deref(), None, token)?
+            };
+
+            if issues.is_empty() {
+                println!("  No open issues found in {}.", gh_repo);
+                return Ok(());
+            }
+
+            if *dry_run {
+                println!(
+                    "\n  {} Would import {} issue(s) from {}:\n",
+                    "ℹ".cyan(),
+                    issues.len(),
+                    gh_repo.bold()
+                );
+                for issue in &issues {
+                    let num = issue["number"].as_i64().unwrap_or(0);
+                    let title = issue["title"].as_str().unwrap_or("untitled");
+                    println!("    #{} {}", num, title.cyan());
+                }
+                return Ok(());
+            }
+
+            println!("\n  Importing issues from {}:\n", gh_repo.bold());
+            let mut count = 0;
+            for issue_data in &issues {
+                match github::import_issue_as_task(conn, gh_repo, issue_data, token) {
+                    Ok(Some(_)) => count += 1,
+                    Ok(None) => {}
+                    Err(e) => eprintln!("  {} Failed to import issue: {}", "!".red(), e),
+                }
+            }
+            println!(
+                "\n  {} Imported {} issue(s) as tasks.\n",
+                "✓".green(),
+                count
+            );
             Ok(())
         }
     }
 }
 
-fn resolve_eisenhower(urgency: Option<u8>, importance: Option<u8>, q1: bool, q2: bool, q3: bool, q4: bool, _conn: &rusqlite::Connection) -> Result<(u8, u8)> {
-    if q1 { return Ok((5, 5)); }
-    if q2 { return Ok((2, 5)); }
-    if q3 { return Ok((5, 2)); }
-    if q4 { return Ok((2, 2)); }
+fn resolve_eisenhower(
+    urgency: Option<u8>,
+    importance: Option<u8>,
+    q1: bool,
+    q2: bool,
+    q3: bool,
+    q4: bool,
+    _conn: &rusqlite::Connection,
+) -> Result<(u8, u8)> {
+    if q1 {
+        return Ok((5, 5));
+    }
+    if q2 {
+        return Ok((2, 5));
+    }
+    if q3 {
+        return Ok((5, 2));
+    }
+    if q4 {
+        return Ok((2, 2));
+    }
     let u = urgency.unwrap_or(3);
     let i = importance.unwrap_or(3);
     Ok((u, i))
 }
 
-fn handle_estimate(conn: &rusqlite::Connection, id: Option<&str>, project: Option<&str>) -> Result<()> {
+fn handle_estimate(
+    conn: &rusqlite::Connection,
+    id: Option<&str>,
+    project: Option<&str>,
+) -> Result<()> {
     if let Some(task_id) = id {
         let (task, sessions) = db::task_estimate(conn, task_id)?;
         print!("{}", tasks::render_estimate(&task, &sessions));
@@ -322,7 +568,10 @@ fn print_task_project_estimate(tasks: &[db::TaskRow], project: &str) {
     let mut total_act: i64 = 0;
 
     for t in tasks {
-        let est_str = t.estimated_seconds.map(insights::fmt_duration).unwrap_or_else(|| "—".to_string());
+        let est_str = t
+            .estimated_seconds
+            .map(insights::fmt_duration)
+            .unwrap_or_else(|| "—".to_string());
         let act_str = insights::fmt_duration(t.actual_seconds);
         if let Some(est) = t.estimated_seconds {
             total_est += est;
@@ -330,9 +579,19 @@ fn print_task_project_estimate(tasks: &[db::TaskRow], project: &str) {
             let status = if t.actual_seconds <= est {
                 format!("{} under", "✓".green())
             } else {
-                format!("{} over by {}", "✗".red(), insights::fmt_duration(t.actual_seconds - est))
+                format!(
+                    "{} over by {}",
+                    "✗".red(),
+                    insights::fmt_duration(t.actual_seconds - est)
+                )
             };
-            println!("  {:<28} {} est → {} act  {}", t.title.bold(), est_str.cyan(), act_str, status);
+            println!(
+                "  {:<28} {} est → {} act  {}",
+                t.title.bold(),
+                est_str.cyan(),
+                act_str,
+                status
+            );
         } else {
             println!("  {:<28} —         → {} act", t.title.bold(), act_str);
         }
@@ -340,17 +599,35 @@ fn print_task_project_estimate(tasks: &[db::TaskRow], project: &str) {
 
     println!();
     println!("  {}", "Project totals:".bold());
-    println!("  {} tracked across {} tasks", insights::fmt_duration(total_act).bold(), tasks.len());
+    println!(
+        "  {} tracked across {} tasks",
+        insights::fmt_duration(total_act).bold(),
+        tasks.len()
+    );
     if total_est > 0 {
-        println!("  {} total estimate", insights::fmt_duration(total_est).bold());
+        println!(
+            "  {} total estimate",
+            insights::fmt_duration(total_est).bold()
+        );
         let remaining = total_est - total_act;
         if remaining > 0 {
-            println!("  {} remaining (in active tasks)", insights::fmt_duration(remaining).bold());
+            println!(
+                "  {} remaining (in active tasks)",
+                insights::fmt_duration(remaining).bold()
+            );
         }
     }
 }
 
-fn handle_summary(conn: &rusqlite::Connection, project: Option<&str>, label: Option<&str>, days: i64, from: Option<&str>, to: Option<&str>, _json: bool) -> Result<()> {
+fn handle_summary(
+    conn: &rusqlite::Connection,
+    project: Option<&str>,
+    label: Option<&str>,
+    days: i64,
+    from: Option<&str>,
+    to: Option<&str>,
+    _json: bool,
+) -> Result<()> {
     let end = to.unwrap_or("2099-12-31").to_string();
     let start = match from {
         Some(s) => s.to_string(),
@@ -367,7 +644,12 @@ fn handle_summary(conn: &rusqlite::Connection, project: Option<&str>, label: Opt
     }
 
     println!("\n  Summary ({} to {}):\n", start, end);
-    println!("  {:<16} {:<10} {}", "Label".bold(), "Time".bold(), "Projects".bold());
+    println!(
+        "  {:<16} {:<10} {}",
+        "Label".bold(),
+        "Time".bold(),
+        "Projects".bold()
+    );
     let mut total_seconds: i64 = 0;
     for (lbl, secs, projs) in &rows {
         println!(
@@ -389,7 +671,12 @@ fn handle_summary(conn: &rusqlite::Connection, project: Option<&str>, label: Opt
     Ok(())
 }
 
-fn handle_advisor(conn: &rusqlite::Connection, time: Option<&str>, energy: Option<&str>, blocked: Option<&str>) -> Result<()> {
+fn handle_advisor(
+    conn: &rusqlite::Connection,
+    time: Option<&str>,
+    energy: Option<&str>,
+    blocked: Option<&str>,
+) -> Result<()> {
     match (time, energy) {
         (Some(t), Some(e)) => {
             let available_seconds = db::parse_duration(t)?.unwrap_or(3600);
@@ -428,6 +715,18 @@ fn show_config() -> Result<()> {
         } else {
             "not set".yellow()
         }
+    );
+    println!(
+        "GitHub token: {}",
+        if cfg.github_token.is_some() {
+            "✓ set".green()
+        } else {
+            "not set".yellow()
+        }
+    );
+    println!(
+        "Default repo: {}",
+        cfg.default_github_repo.as_deref().unwrap_or("not set")
     );
     Ok(())
 }

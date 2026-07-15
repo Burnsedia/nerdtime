@@ -15,7 +15,9 @@ fn run_git(args: &[&str]) -> Option<String> {
         .ok()
         .and_then(|o| {
             if o.status.success() {
-                String::from_utf8(o.stdout).ok().map(|s| s.trim().to_string())
+                String::from_utf8(o.stdout)
+                    .ok()
+                    .map(|s| s.trim().to_string())
             } else {
                 None
             }
@@ -36,8 +38,15 @@ pub fn handle_cache_commit(conn: &Connection) -> Result<()> {
     let branch = run_git(&["branch", "--show-current"]).unwrap_or_default();
     let date = run_git(&["log", "-1", "--format=%ai"]).unwrap_or_default();
 
-    let stats_output = run_git(&["diff-tree", "--no-commit-id", "-r", "--numstat", "--root", "HEAD"])
-        .unwrap_or_default();
+    let stats_output = run_git(&[
+        "diff-tree",
+        "--no-commit-id",
+        "-r",
+        "--numstat",
+        "--root",
+        "HEAD",
+    ])
+    .unwrap_or_default();
 
     let mut files_changed: i64 = 0;
     let mut lines_added: i64 = 0;
@@ -70,9 +79,7 @@ pub fn handle_cache_commit(conn: &Connection) -> Result<()> {
 }
 
 pub fn handle_new(conn: &Connection) -> Result<()> {
-    let title: String = Input::new()
-        .with_prompt("Title")
-        .interact_text()?;
+    let title: String = Input::new().with_prompt("Title").interact_text()?;
 
     let role_idx = Select::new()
         .with_prompt("Role")
@@ -110,7 +117,10 @@ pub fn handle_new(conn: &Connection) -> Result<()> {
         .filter(|l| !l.is_empty())
         .collect();
 
-    println!("{} Opening $EDITOR for decisions (one per line)…", "✎".cyan());
+    println!(
+        "{} Opening $EDITOR for decisions (one per line)…",
+        "✎".cyan()
+    );
     let decisions_raw: String = Editor::new()
         .edit("")
         .context("editor cancelled")?
@@ -237,13 +247,7 @@ fn get_unlogged_commits(since: &str, conn: &Connection) -> Result<Vec<(String, S
     let seen_shas: std::collections::HashSet<String> =
         unlogged.iter().map(|(s, _)| s.clone()).collect();
 
-    if let Some(git_output) = run_git(&[
-        "log",
-        "--since",
-        since,
-        "--format=%H|%s",
-        "--no-merges",
-    ]) {
+    if let Some(git_output) = run_git(&["log", "--since", since, "--format=%H|%s", "--no-merges"]) {
         for line in git_output.lines() {
             if let Some((sha, subject)) = line.split_once('|') {
                 let sha = sha.to_string();
@@ -352,8 +356,8 @@ pub fn handle_edit(conn: &Connection, id: &str) -> Result<()> {
         .context("editor cancelled")?
         .unwrap_or_default();
 
-    let updated: DevlogToml = toml::from_str(&edited)
-        .context("failed to parse edited TOML — entry unchanged")?;
+    let updated: DevlogToml =
+        toml::from_str(&edited).context("failed to parse edited TOML — entry unchanged")?;
 
     let now = Utc::now().to_rfc3339();
 
@@ -398,9 +402,12 @@ pub fn handle_edit(conn: &Connection, id: &str) -> Result<()> {
 
 pub fn handle_generate(conn: &Connection) -> Result<()> {
     let markdown = generate_devlog_md(conn)?;
-    std::fs::write("DEVLOG.md", &markdown)
-        .context("failed to write DEVLOG.md")?;
-    println!("{} DEVLOG.md regenerated ({} lines)", "✓".green(), markdown.lines().count());
+    std::fs::write("DEVLOG.md", &markdown).context("failed to write DEVLOG.md")?;
+    println!(
+        "{} DEVLOG.md regenerated ({} lines)",
+        "✓".green(),
+        markdown.lines().count()
+    );
     Ok(())
 }
 

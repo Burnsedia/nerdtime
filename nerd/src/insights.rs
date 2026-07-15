@@ -3,7 +3,12 @@ use crate::db::{HeatmapCell, Insights};
 use colored::Colorize;
 
 const DAY_NAMES: [&str; 7] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const BLOCK_NAMES: [&str; 4] = ["🌅 Morning (6-12)", "☀️ Afternoon (12-18)", "🌙 Evening (18-0)", "🌃 Night (0-6)"];
+const BLOCK_NAMES: [&str; 4] = [
+    "🌅 Morning (6-12)",
+    "☀️ Afternoon (12-18)",
+    "🌙 Evening (18-0)",
+    "🌃 Night (0-6)",
+];
 
 pub fn fmt_duration(seconds: i64) -> String {
     let hours = seconds / 3600;
@@ -101,7 +106,8 @@ pub fn render_insights(data: &Insights) -> String {
     }
     out.push('\n');
 
-    let mut day_pairs: Vec<(usize, i64)> = data.per_day_of_week.iter().copied().enumerate().collect();
+    let mut day_pairs: Vec<(usize, i64)> =
+        data.per_day_of_week.iter().copied().enumerate().collect();
     day_pairs.sort_by_key(|b| std::cmp::Reverse(b.1));
     if let Some((best_day, best_seconds)) = day_pairs.first() {
         if *best_seconds > 0 {
@@ -140,11 +146,11 @@ pub fn render_insights(data: &Insights) -> String {
     } else {
         0
     };
+    out.push_str(&format!("  Sessions:  {} completed\n", data.session_count));
     out.push_str(&format!(
-        "  Sessions:  {} completed\n",
-        data.session_count
+        "  Total:     {}\n",
+        fmt_duration(data.total_seconds).bold()
     ));
-    out.push_str(&format!("  Total:     {}\n", fmt_duration(data.total_seconds).bold()));
     out.push_str(&format!("  Daily avg: {}\n", fmt_duration(daily_avg)));
 
     out

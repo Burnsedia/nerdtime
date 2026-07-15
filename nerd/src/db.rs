@@ -5,6 +5,7 @@ use chrono::Utc;
 use colored::Colorize;
 use nerdtime_core::Session;
 use rusqlite::{params, Connection};
+use std::io::Write;
 use std::path::PathBuf;
 use uuid::Uuid;
 
@@ -73,8 +74,16 @@ pub fn get_connection() -> Result<Connection> {
     )?;
 
     let _ = conn.execute("ALTER TABLE sessions ADD COLUMN task_id TEXT", []);
-    let _ = conn.execute("ALTER TABLE sessions ADD COLUMN estimated_seconds INTEGER", []);
+    let _ = conn.execute(
+        "ALTER TABLE sessions ADD COLUMN estimated_seconds INTEGER",
+        [],
+    );
     let _ = conn.execute("ALTER TABLE sessions ADD COLUMN labels TEXT", []);
+    let _ = conn.execute("ALTER TABLE tasks ADD COLUMN github_repo TEXT", []);
+    let _ = conn.execute(
+        "ALTER TABLE tasks ADD COLUMN github_issue_number INTEGER",
+        [],
+    );
 
     Ok(conn)
 }
@@ -269,11 +278,11 @@ pub fn show_status(conn: &Connection) -> Result<()> {
                 println!("  Description: {}", d);
             }
             if let Some(ref t) = s.task_id {
-                if let Ok(title) = conn.query_row(
-                    "SELECT title FROM tasks WHERE id = ?1",
-                    params![t],
-                    |row| row.get::<_, String>(0),
-                ) {
+                if let Ok(title) =
+                    conn.query_row("SELECT title FROM tasks WHERE id = ?1", params![t], |row| {
+                        row.get::<_, String>(0)
+                    })
+                {
                     println!("  Task:       {}", title.cyan());
                 }
             }
@@ -322,11 +331,19 @@ pub fn list_sessions(conn: &Connection, project: Option<&str>, limit: usize) -> 
         } else {
             "○".yellow()
         };
-        let task_tag = s.task_id.as_ref().and_then(|tid| {
-            conn.query_row("SELECT title FROM tasks WHERE id = ?1", params![tid], |row| row.get::<_, String>(0))
+        let task_tag = s
+            .task_id
+            .as_ref()
+            .and_then(|tid| {
+                conn.query_row(
+                    "SELECT title FROM tasks WHERE id = ?1",
+                    params![tid],
+                    |row| row.get::<_, String>(0),
+                )
                 .ok()
                 .map(|t| format!(" [{}]", t.cyan()))
-        }).unwrap_or_default();
+            })
+            .unwrap_or_default();
         println!(
             "{} [{}] {} — {} ({}){}",
             synced,
@@ -368,7 +385,11 @@ pub struct HeatmapCell {
     pub total_seconds: i64,
 }
 
-pub fn heatmap_data(conn: &Connection, days: i64, project: Option<&str>) -> Result<Vec<HeatmapCell>> {
+pub fn heatmap_data(
+    conn: &Connection,
+    days: i64,
+    project: Option<&str>,
+) -> Result<Vec<HeatmapCell>> {
     let mut sql = String::from(
         "SELECT CAST(strftime('%w', started_at) AS INTEGER) as day,
                 CAST(strftime('%H', started_at) AS INTEGER) as hour,
@@ -430,40 +451,43 @@ pub fn insights_data(conn: &Connection, days: i64, project: Option<&str>) -> Res
 
     let mut stmt = conn.prepare(&sql)?;
 
-    let rows: Vec<(String, chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>)> =
-        if let Some(p) = project {
-            stmt.query_map(params![format!("-{}", days), p], |row| {
-                let started: String = row.get(1)?;
-                let ended: String = row.get(2)?;
-                Ok((
-                    row.get::<_, String>(0)?,
-                    chrono::DateTime::parse_from_rfc3339(&started)
-                        .map(|d| d.to_utc())
-                        .unwrap_or_default(),
-                    chrono::DateTime::parse_from_rfc3339(&ended)
-                        .map(|d| d.to_utc())
-                        .unwrap_or_default(),
-                ))
-            })?
-            .filter_map(|r| r.ok())
-            .collect()
-        } else {
-            stmt.query_map(params![format!("-{}", days)], |row| {
-                let started: String = row.get(1)?;
-                let ended: String = row.get(2)?;
-                Ok((
-                    row.get::<_, String>(0)?,
-                    chrono::DateTime::parse_from_rfc3339(&started)
-                        .map(|d| d.to_utc())
-                        .unwrap_or_default(),
-                    chrono::DateTime::parse_from_rfc3339(&ended)
-                        .map(|d| d.to_utc())
-                        .unwrap_or_default(),
-                ))
-            })?
-            .filter_map(|r| r.ok())
-            .collect()
-        };
+    let rows: Vec<(
+        String,
+        chrono::DateTime<chrono::Utc>,
+        chrono::DateTime<chrono::Utc>,
+    )> = if let Some(p) = project {
+        stmt.query_map(params![format!("-{}", days), p], |row| {
+            let started: String = row.get(1)?;
+            let ended: String = row.get(2)?;
+            Ok((
+                row.get::<_, String>(0)?,
+                chrono::DateTime::parse_from_rfc3339(&started)
+                    .map(|d| d.to_utc())
+                    .unwrap_or_default(),
+                chrono::DateTime::parse_from_rfc3339(&ended)
+                    .map(|d| d.to_utc())
+                    .unwrap_or_default(),
+            ))
+        })?
+        .filter_map(|r| r.ok())
+        .collect()
+    } else {
+        stmt.query_map(params![format!("-{}", days)], |row| {
+            let started: String = row.get(1)?;
+            let ended: String = row.get(2)?;
+            Ok((
+                row.get::<_, String>(0)?,
+                chrono::DateTime::parse_from_rfc3339(&started)
+                    .map(|d| d.to_utc())
+                    .unwrap_or_default(),
+                chrono::DateTime::parse_from_rfc3339(&ended)
+                    .map(|d| d.to_utc())
+                    .unwrap_or_default(),
+            ))
+        })?
+        .filter_map(|r| r.ok())
+        .collect()
+    };
 
     let session_count = rows.len() as i64;
     let mut total_seconds: i64 = 0;
@@ -484,7 +508,11 @@ pub fn insights_data(conn: &Connection, days: i64, project: Option<&str>) -> Res
         };
         per_block[block_idx] += dur;
 
-        let dow = started.format("%w").to_string().parse::<usize>().unwrap_or(0);
+        let dow = started
+            .format("%w")
+            .to_string()
+            .parse::<usize>()
+            .unwrap_or(0);
         per_day_of_week[dow] += dur;
 
         *project_map.entry(proj.clone()).or_insert(0) += dur;
@@ -539,8 +567,16 @@ fn entry_from_row(row: &rusqlite::Row) -> rusqlite::Result<DevlogEntry> {
         role: row.get(3)?,
         tags: serde_json::from_str(&tags_str).unwrap_or_default(),
         context: row.get(5)?,
-        changes: changes_str.lines().filter(|l| !l.is_empty()).map(|l| l.to_string()).collect(),
-        decisions: decisions_str.lines().filter(|l| !l.is_empty()).map(|l| l.to_string()).collect(),
+        changes: changes_str
+            .lines()
+            .filter(|l| !l.is_empty())
+            .map(|l| l.to_string())
+            .collect(),
+        decisions: decisions_str
+            .lines()
+            .filter(|l| !l.is_empty())
+            .map(|l| l.to_string())
+            .collect(),
         commits: serde_json::from_str(&commits_str).unwrap_or_default(),
         session_id: row.get(9)?,
         created_at: row.get(10)?,
@@ -606,7 +642,11 @@ pub fn list_devlog_entries(conn: &Connection, limit: usize) -> Result<Vec<Devlog
     Ok(entries)
 }
 
-pub fn search_devlog_entries(conn: &Connection, query: &str, tags: Option<&str>) -> Result<Vec<DevlogEntry>> {
+pub fn search_devlog_entries(
+    conn: &Connection,
+    query: &str,
+    tags: Option<&str>,
+) -> Result<Vec<DevlogEntry>> {
     let like = format!("%{}%", query);
     let mut sql = String::from(
         "SELECT id, date, title, role, tags, context, changes, decisions, commits, session_id, created_at FROM devlog_entries WHERE (title LIKE ?1 OR context LIKE ?1 OR changes LIKE ?1 OR decisions LIKE ?1)",
@@ -690,15 +730,20 @@ pub fn get_last_devlog_date(conn: &Connection) -> Result<Option<String>> {
     Ok(date)
 }
 
-pub fn get_cached_commit_map(conn: &Connection) -> Result<std::collections::HashMap<String, (i64, i64, i64)>> {
-    let mut stmt = conn.prepare(
-        "SELECT sha, files_changed, lines_added, lines_removed FROM cached_commits",
-    )?;
+pub fn get_cached_commit_map(
+    conn: &Connection,
+) -> Result<std::collections::HashMap<String, (i64, i64, i64)>> {
+    let mut stmt =
+        conn.prepare("SELECT sha, files_changed, lines_added, lines_removed FROM cached_commits")?;
     let map = stmt
         .query_map([], |row| {
             Ok((
                 row.get::<_, String>(0)?,
-                (row.get::<_, i64>(1)?, row.get::<_, i64>(2)?, row.get::<_, i64>(3)?),
+                (
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, i64>(2)?,
+                    row.get::<_, i64>(3)?,
+                ),
             ))
         })?
         .filter_map(|r| r.ok())
@@ -721,6 +766,8 @@ pub struct TaskRow {
     pub created_at: String,
     pub completed_at: Option<String>,
     pub actual_seconds: i64,
+    pub github_repo: Option<String>,
+    pub github_issue_number: Option<i64>,
 }
 
 pub fn parse_duration(input: &str) -> Result<Option<i64>> {
@@ -764,9 +811,7 @@ fn compute_quadrant(urgency: u8, importance: u8) -> u8 {
 }
 
 pub fn resolve_task_id(conn: &Connection, partial: &str) -> Result<String> {
-    let mut stmt = conn.prepare(
-        "SELECT id FROM tasks WHERE id LIKE ?1 || '%'",
-    )?;
+    let mut stmt = conn.prepare("SELECT id FROM tasks WHERE id LIKE ?1 || '%'")?;
     let matches: Vec<String> = stmt
         .query_map(params![partial], |row| row.get::<_, String>(0))?
         .filter_map(|r| r.ok())
@@ -774,7 +819,11 @@ pub fn resolve_task_id(conn: &Connection, partial: &str) -> Result<String> {
     match matches.len() {
         0 => anyhow::bail!("no task matches prefix: {}", partial),
         1 => Ok(matches.into_iter().next().unwrap()),
-        _ => anyhow::bail!("multiple tasks match prefix '{}': {}", partial, matches.join(", ")),
+        _ => anyhow::bail!(
+            "multiple tasks match prefix '{}': {}",
+            partial,
+            matches.join(", ")
+        ),
     }
 }
 
@@ -788,20 +837,43 @@ pub fn add_task(
     urgency: u8,
     importance: u8,
     labels: Option<&str>,
+    github_repo: Option<&str>,
+    github_issue_number: Option<i64>,
 ) -> Result<String> {
     let id = Uuid::new_v4().to_string();
     let now = Utc::now().to_rfc3339();
     let quadrant = compute_quadrant(urgency, importance);
     conn.execute(
-        "INSERT INTO tasks (id, project_name, title, description, estimated_seconds, urgency, importance, quadrant, labels, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
-        params![id, project, title, desc, est, urgency, importance, quadrant, labels, now],
+        "INSERT INTO tasks (id, project_name, title, description, estimated_seconds, urgency, importance, quadrant, labels, created_at, github_repo, github_issue_number) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+        params![id, project, title, desc, est, urgency, importance, quadrant, labels, now, github_repo, github_issue_number],
     )?;
     Ok(id)
 }
 
-pub fn list_tasks(conn: &Connection, project: Option<&str>, status: Option<&str>) -> Result<Vec<TaskRow>> {
+pub fn find_task_by_github_issue(
+    conn: &Connection,
+    repo: &str,
+    number: i64,
+) -> Result<Option<String>> {
+    let result = conn.query_row(
+        "SELECT id FROM tasks WHERE github_repo = ?1 AND github_issue_number = ?2 AND status = 'active'",
+        params![repo, number],
+        |row| row.get(0),
+    );
+    match result {
+        Ok(id) => Ok(Some(id)),
+        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+        Err(e) => Err(e.into()),
+    }
+}
+
+pub fn list_tasks(
+    conn: &Connection,
+    project: Option<&str>,
+    status: Option<&str>,
+) -> Result<Vec<TaskRow>> {
     let mut sql = String::from(
-        "SELECT t.id, t.project_name, t.title, t.description, t.estimated_seconds, t.urgency, t.importance, t.quadrant, t.status, t.labels, t.created_at, t.completed_at, COALESCE(SUM(CAST((julianday(s.ended_at) - julianday(s.started_at)) * 86400 AS INTEGER)), 0) as actual_seconds FROM tasks t LEFT JOIN sessions s ON s.task_id = t.id AND s.ended_at IS NOT NULL",
+        "SELECT t.id, t.project_name, t.title, t.description, t.estimated_seconds, t.urgency, t.importance, t.quadrant, t.status, t.labels, t.created_at, t.completed_at, COALESCE(SUM(CAST((julianday(s.ended_at) - julianday(s.started_at)) * 86400 AS INTEGER)), 0) as actual_seconds, t.github_repo, t.github_issue_number FROM tasks t LEFT JOIN sessions s ON s.task_id = t.id AND s.ended_at IS NOT NULL",
     );
     let mut conditions: Vec<String> = Vec::new();
     if let Some(p) = project {
@@ -833,6 +905,8 @@ pub fn list_tasks(conn: &Connection, project: Option<&str>, status: Option<&str>
                 created_at: row.get(10)?,
                 completed_at: row.get(11)?,
                 actual_seconds: row.get(12)?,
+                github_repo: row.get(13)?,
+                github_issue_number: row.get(14)?,
             })
         })?
         .filter_map(|r| r.ok())
@@ -840,7 +914,7 @@ pub fn list_tasks(conn: &Connection, project: Option<&str>, status: Option<&str>
     Ok(rows)
 }
 
-pub fn complete_task(conn: &Connection, id: &str) -> Result<()> {
+pub fn complete_task(conn: &Connection, id: &str, close_issue: bool) -> Result<()> {
     let tid = resolve_task_id(conn, id)?;
     let active: bool = conn.query_row(
         "SELECT COUNT(*) FROM sessions WHERE task_id = ?1 AND ended_at IS NULL",
@@ -849,6 +923,39 @@ pub fn complete_task(conn: &Connection, id: &str) -> Result<()> {
     )? > 0;
     if active {
         anyhow::bail!("Task has an active session. Stop it first with `nerd stop`.");
+    }
+    // check if this task has a linked github issue
+    let (gh_repo, gh_number): (Option<String>, Option<i64>) = conn.query_row(
+        "SELECT github_repo, github_issue_number FROM tasks WHERE id = ?1",
+        params![tid],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )?;
+    if let (Some(repo), Some(number)) = (&gh_repo, gh_number) {
+        let should_close = if close_issue {
+            true
+        } else {
+            print!(
+                "{} Close GitHub issue {}/{}? [y/N]: ",
+                "?".yellow(),
+                repo,
+                number
+            );
+            std::io::stdout().flush().ok();
+            let mut input = String::new();
+            std::io::stdin().read_line(&mut input).ok();
+            matches!(input.trim().to_lowercase().as_str(), "y" | "yes")
+        };
+        if should_close {
+            if let Err(e) = crate::github::close_issue(repo, number) {
+                eprintln!(
+                    "{} Warning: failed to close GitHub issue: {}",
+                    "!".yellow(),
+                    e
+                );
+            } else {
+                println!("{} Closed GitHub issue {}/#{}.", "✓".green(), repo, number);
+            }
+        }
     }
     let now = Utc::now().to_rfc3339();
     conn.execute(
@@ -881,7 +988,6 @@ pub fn edit_task(
     let tid = resolve_task_id(conn, id)?;
     let mut sets: Vec<String> = Vec::new();
 
-
     if let Some(t) = title {
         sets.push(format!("title = '{}'", t.replace('\'', "''")));
     }
@@ -893,11 +999,13 @@ pub fn edit_task(
     }
     if let Some(u) = urgency {
         let i = importance.unwrap_or({
-            let cur: u8 = conn.query_row(
-                "SELECT importance FROM tasks WHERE id = ?1",
-                params![tid],
-                |row| row.get(0),
-            ).unwrap_or(3);
+            let cur: u8 = conn
+                .query_row(
+                    "SELECT importance FROM tasks WHERE id = ?1",
+                    params![tid],
+                    |row| row.get(0),
+                )
+                .unwrap_or(3);
             cur
         });
         let q = compute_quadrant(u, i);
@@ -906,11 +1014,13 @@ pub fn edit_task(
     }
     if let Some(i) = importance {
         let u = urgency.unwrap_or({
-            let cur: u8 = conn.query_row(
-                "SELECT urgency FROM tasks WHERE id = ?1",
-                params![tid],
-                |row| row.get(0),
-            ).unwrap_or(3);
+            let cur: u8 = conn
+                .query_row(
+                    "SELECT urgency FROM tasks WHERE id = ?1",
+                    params![tid],
+                    |row| row.get(0),
+                )
+                .unwrap_or(3);
             cur
         });
         let q = compute_quadrant(u, i);
@@ -951,8 +1061,15 @@ pub fn task_estimate(conn: &Connection, id: &str) -> Result<(TaskRow, Vec<Sessio
             let ended: String = row.get(1)?;
             let dur = chrono::DateTime::parse_from_rfc3339(&ended)
                 .unwrap_or_default()
-                .signed_duration_since(chrono::DateTime::parse_from_rfc3339(&started).unwrap_or_default());
-            Ok((started, ended, dur.num_seconds(), row.get::<_, Option<i64>>(2)?))
+                .signed_duration_since(
+                    chrono::DateTime::parse_from_rfc3339(&started).unwrap_or_default(),
+                );
+            Ok((
+                started,
+                ended,
+                dur.num_seconds(),
+                row.get::<_, Option<i64>>(2)?,
+            ))
         })?
         .filter_map(|r| r.ok())
         .collect();
@@ -971,23 +1088,34 @@ pub fn label_summary(
         "SELECT j.value as label, SUM(CAST((julianday(s.ended_at) - julianday(s.started_at)) * 86400 AS INTEGER)) as total_seconds, s.project_name FROM sessions s, json_each(COALESCE(s.labels, '[]')) AS j WHERE s.ended_at IS NOT NULL AND s.started_at >= ?1 AND s.started_at <= ?2",
     );
     if let Some(p) = project {
-        sql.push_str(&format!(" AND s.project_name = '{}'", p.replace('\'', "''")));
+        sql.push_str(&format!(
+            " AND s.project_name = '{}'",
+            p.replace('\'', "''")
+        ));
     }
     sql.push_str(" GROUP BY j.value, s.project_name ORDER BY total_seconds DESC");
 
     let mut stmt = conn.prepare(&sql)?;
-    let mut map: std::collections::HashMap<String, (i64, Vec<String>)> = std::collections::HashMap::new();
-    for row in stmt.query_map(params![start_date, end_date], |row| {
-        Ok((
-            row.get::<_, String>(0)?,
-            row.get::<_, i64>(1)?,
-            row.get::<_, String>(2)?,
-        ))
-    })?.filter_map(|r| r.ok()) {
+    let mut map: std::collections::HashMap<String, (i64, Vec<String>)> =
+        std::collections::HashMap::new();
+    for row in stmt
+        .query_map(params![start_date, end_date], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, i64>(1)?,
+                row.get::<_, String>(2)?,
+            ))
+        })?
+        .filter_map(|r| r.ok())
+    {
         let (lbl, seconds, proj) = row;
-        if lbl.is_empty() { continue; }
+        if lbl.is_empty() {
+            continue;
+        }
         if let Some(f) = label_filter {
-            if lbl != f { continue; }
+            if lbl != f {
+                continue;
+            }
         }
         let entry = map.entry(lbl).or_insert((0, Vec::new()));
         entry.0 += seconds;
@@ -996,12 +1124,17 @@ pub fn label_summary(
         }
     }
 
-    let mut result: Vec<(String, i64, Vec<String>)> = map.into_iter().map(|(k, (s, p))| (k, s, p)).collect();
+    let mut result: Vec<(String, i64, Vec<String>)> =
+        map.into_iter().map(|(k, (s, p))| (k, s, p)).collect();
     result.sort_by_key(|b| std::cmp::Reverse(b.1));
     Ok(result)
 }
 
-pub fn unsynced_active_tasks(conn: &Connection, available_seconds: i64, energy: &str) -> Result<Vec<TaskRow>> {
+pub fn unsynced_active_tasks(
+    conn: &Connection,
+    available_seconds: i64,
+    energy: &str,
+) -> Result<Vec<TaskRow>> {
     let all = list_tasks(conn, None, Some("active"))?;
     Ok(all
         .into_iter()

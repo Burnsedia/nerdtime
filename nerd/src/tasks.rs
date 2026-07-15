@@ -25,18 +25,48 @@ pub fn render_matrix(tasks: &[db::TaskRow]) -> String {
     let mut out = String::new();
     out.push('\n');
 
-    render_quadrant(&mut out, "Q1: Do First", "urgency > 3, importance > 3", &q1, "red");
+    render_quadrant(
+        &mut out,
+        "Q1: Do First",
+        "urgency > 3, importance > 3",
+        &q1,
+        "red",
+    );
     out.push('\n');
-    render_quadrant(&mut out, "Q2: Schedule", "urgency ≤ 3, importance > 3", &q2, "yellow");
+    render_quadrant(
+        &mut out,
+        "Q2: Schedule",
+        "urgency ≤ 3, importance > 3",
+        &q2,
+        "yellow",
+    );
     out.push('\n');
-    render_quadrant(&mut out, "Q3: Delegate", "urgency > 3, importance ≤ 3", &q3, "blue");
+    render_quadrant(
+        &mut out,
+        "Q3: Delegate",
+        "urgency > 3, importance ≤ 3",
+        &q3,
+        "blue",
+    );
     out.push('\n');
-    render_quadrant(&mut out, "Q4: Eliminate", "urgency ≤ 3, importance ≤ 3", &q4, "white");
+    render_quadrant(
+        &mut out,
+        "Q4: Eliminate",
+        "urgency ≤ 3, importance ≤ 3",
+        &q4,
+        "white",
+    );
 
     out
 }
 
-fn render_quadrant(out: &mut String, title: &str, subtitle: &str, tasks: &[&db::TaskRow], color: &str) {
+fn render_quadrant(
+    out: &mut String,
+    title: &str,
+    subtitle: &str,
+    tasks: &[&db::TaskRow],
+    color: &str,
+) {
     let header = match color {
         "red" => title.red(),
         "yellow" => title.yellow(),
@@ -63,7 +93,11 @@ fn render_quadrant(out: &mut String, title: &str, subtitle: &str, tasks: &[&db::
             .estimated_seconds
             .map(insights::fmt_duration)
             .unwrap_or_default();
-        let act_str = if t.actual_seconds > 0 { insights::fmt_duration(t.actual_seconds) } else { String::new() };
+        let act_str = if t.actual_seconds > 0 {
+            insights::fmt_duration(t.actual_seconds)
+        } else {
+            String::new()
+        };
         out.push_str(&format!(
             "    {}  {}  urg:{} imp:{}",
             status_icon(t.status.as_str()),
@@ -90,15 +124,30 @@ pub fn render_task_list(tasks: &[db::TaskRow]) -> String {
     }
 
     let mut out = String::new();
-    out.push_str(&format!(
-        "  {:<8} {:<28} {:<10} {:<10} {:<10} {:<6}\n",
-        "Status".bold(),
-        "Title".bold(),
-        "Est".bold(),
-        "Actual".bold(),
-        "Remaining".bold(),
-        "Q".bold(),
-    ));
+    let has_github = tasks.iter().any(|t| t.github_issue_number.is_some());
+
+    if has_github {
+        out.push_str(&format!(
+            "  {:<8} {:<28} {:<10} {:<10} {:<10} {:<6} {:<8}\n",
+            "Status".bold(),
+            "Title".bold(),
+            "Est".bold(),
+            "Actual".bold(),
+            "Remaining".bold(),
+            "Q".bold(),
+            "GitHub".bold(),
+        ));
+    } else {
+        out.push_str(&format!(
+            "  {:<8} {:<28} {:<10} {:<10} {:<10} {:<6}\n",
+            "Status".bold(),
+            "Title".bold(),
+            "Est".bold(),
+            "Actual".bold(),
+            "Remaining".bold(),
+            "Q".bold(),
+        ));
+    }
 
     for t in tasks {
         let est_str = t
@@ -115,15 +164,38 @@ pub fn render_task_list(tasks: &[db::TaskRow]) -> String {
             insights::fmt_duration(r)
         });
         let rem_str = rem.as_deref().unwrap_or("—");
-        out.push_str(&format!(
-            "  {:<8} {:<28} {:<10} {:<10} {:<10} Q{}\n",
-            status_icon(t.status.as_str()),
-            truncate(&t.title, 26),
-            est_str,
-            act_str,
-            rem_str,
-            t.quadrant,
-        ));
+        let gh_str = t
+            .github_issue_number
+            .map(|n| {
+                if t.status == "completed" {
+                    format!("#{} ✓", n)
+                } else {
+                    format!("#{}", n)
+                }
+            })
+            .unwrap_or_default();
+        if has_github {
+            out.push_str(&format!(
+                "  {:<8} {:<28} {:<10} {:<10} {:<10} Q{:<5} {:<8}\n",
+                status_icon(t.status.as_str()),
+                truncate(&t.title, 26),
+                est_str,
+                act_str,
+                rem_str,
+                t.quadrant,
+                gh_str,
+            ));
+        } else {
+            out.push_str(&format!(
+                "  {:<8} {:<28} {:<10} {:<10} {:<10} Q{}\n",
+                status_icon(t.status.as_str()),
+                truncate(&t.title, 26),
+                est_str,
+                act_str,
+                rem_str,
+                t.quadrant,
+            ));
+        }
     }
 
     out.push('\n');
@@ -139,9 +211,16 @@ pub fn render_task_list(tasks: &[db::TaskRow]) -> String {
     out
 }
 
-pub fn render_estimate(task: &db::TaskRow, sessions: &[(String, String, i64, Option<i64>)]) -> String {
+pub fn render_estimate(
+    task: &db::TaskRow,
+    sessions: &[(String, String, i64, Option<i64>)],
+) -> String {
     let mut out = String::new();
-    out.push_str(&format!("\n  {}  ({})\n\n", task.title.bold(), task.project_name.cyan()));
+    out.push_str(&format!(
+        "\n  {}  ({})\n\n",
+        task.title.bold(),
+        task.project_name.cyan()
+    ));
 
     let est_str = task
         .estimated_seconds
@@ -167,7 +246,9 @@ pub fn render_estimate(task: &db::TaskRow, sessions: &[(String, String, i64, Opt
         out.push_str("  Sessions:\n");
         for (start, _end, dur, est) in sessions {
             let date = &start[..10];
-            let est_tag = est.map(|e| format!(" (-{})", insights::fmt_duration(e))).unwrap_or_default();
+            let est_tag = est
+                .map(|e| format!(" (-{})", insights::fmt_duration(e)))
+                .unwrap_or_default();
             out.push_str(&format!(
                 "    {}  {}{}\n",
                 date,
@@ -180,7 +261,10 @@ pub fn render_estimate(task: &db::TaskRow, sessions: &[(String, String, i64, Opt
 
     let remaining = task.estimated_seconds.map(|e| (e - total_actual).max(0));
     if let Some(r) = remaining {
-        out.push_str(&format!("  Remaining:  {}\n", insights::fmt_duration(r).bold()));
+        out.push_str(&format!(
+            "  Remaining:  {}\n",
+            insights::fmt_duration(r).bold()
+        ));
     }
 
     out

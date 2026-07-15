@@ -12,7 +12,10 @@ pub struct AdvisorInput {
 }
 
 pub fn run_interactive(conn: &Connection) -> anyhow::Result<()> {
-    println!("\n{} Let's figure it out. I'll ask a few questions.\n", "🧭".cyan());
+    println!(
+        "\n{} Let's figure it out. I'll ask a few questions.\n",
+        "🧭".cyan()
+    );
 
     let time_str: String = Input::new()
         .with_prompt("How much time do you have")
@@ -32,7 +35,11 @@ pub fn run_interactive(conn: &Connection) -> anyhow::Result<()> {
         .allow_empty(true)
         .default(String::new())
         .interact_text()?;
-    let blocked = if blocked.is_empty() { None } else { Some(blocked) };
+    let blocked = if blocked.is_empty() {
+        None
+    } else {
+        Some(blocked)
+    };
 
     let input = AdvisorInput {
         available_seconds,
@@ -59,7 +66,14 @@ pub fn run_interactive(conn: &Connection) -> anyhow::Result<()> {
                 )
                 .ok()
                 .flatten();
-            db::start_session(conn, &result.project, None, Some(&tid), None, task_labels.as_deref())?;
+            db::start_session(
+                conn,
+                &result.project,
+                None,
+                Some(&tid),
+                None,
+                task_labels.as_deref(),
+            )?;
         }
     }
 
@@ -87,16 +101,23 @@ pub fn decide(conn: &Connection, input: &AdvisorInput) -> anyhow::Result<Advice>
 
     for task in &tasks {
         if task.quadrant == 1 {
-            let fits = task.estimated_seconds
+            let fits = task
+                .estimated_seconds
                 .map(|e| e <= (input.available_seconds as f64 * 1.5) as i64)
                 .unwrap_or(true);
             if fits {
-                let mut reason = format!("Top priority Q1 task. Fits your {} block.", insights::fmt_duration(input.available_seconds));
+                let mut reason = format!(
+                    "Top priority Q1 task. Fits your {} block.",
+                    insights::fmt_duration(input.available_seconds)
+                );
                 if let Some(ref b) = input.blocked {
                     if task.title.to_lowercase().contains(&b.to_lowercase()) {
                         continue;
                     }
-                    reason.push_str(&format!(" You mentioned you're blocked on \"{}\" — this task doesn't seem related.", b));
+                    reason.push_str(&format!(
+                        " You mentioned you're blocked on \"{}\" — this task doesn't seem related.",
+                        b
+                    ));
                 }
                 if input.energy == "low" && task.estimated_seconds.is_some_and(|e| e > 1800) {
                     // Skip big Q1 tasks on low energy, check next
@@ -114,7 +135,8 @@ pub fn decide(conn: &Connection, input: &AdvisorInput) -> anyhow::Result<Advice>
 
     for task in &tasks {
         if task.quadrant == 2 {
-            let fits = task.estimated_seconds
+            let fits = task
+                .estimated_seconds
                 .map(|e| e <= (input.available_seconds as f64 * 1.5) as i64)
                 .unwrap_or(true);
             if fits {
@@ -130,7 +152,8 @@ pub fn decide(conn: &Connection, input: &AdvisorInput) -> anyhow::Result<Advice>
 
     for task in &tasks {
         if task.quadrant == 3 {
-            let fits = task.estimated_seconds
+            let fits = task
+                .estimated_seconds
                 .map(|e| e <= (input.available_seconds as f64 * 1.5) as i64)
                 .unwrap_or(true);
             if fits {
@@ -138,7 +161,8 @@ pub fn decide(conn: &Connection, input: &AdvisorInput) -> anyhow::Result<Advice>
                     task_id: Some(task.id.clone()),
                     task_title: task.title.clone(),
                     project: task.project_name.clone(),
-                    reason: "Quick task you can delegate later, but do it now if it's fast.".to_string(),
+                    reason: "Quick task you can delegate later, but do it now if it's fast."
+                        .to_string(),
                 });
             }
         }

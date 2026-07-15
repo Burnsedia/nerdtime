@@ -42,7 +42,7 @@ Product phases for nerdtime, the terminal-native quantified-self system for deve
 - [x] `nerd summary` — aggregate by label/project
 - [x] `nerd estimate` — estimate vs actual time
 - [x] Labels (JSON array, cross-cutting projects and tasks)
-- [ ] GitHub Issues sync (link, import, close)
+- [x] GitHub Issues sync (link, import, close)
 
 ## Phase 2: Launch polish
 

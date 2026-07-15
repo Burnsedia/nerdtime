@@ -8,18 +8,12 @@ pub struct Migration;
 impl MigrationTrait for Migration {
     async fn up(&self, m: &SchemaManager) -> Result<(), DbErr> {
         let db = m.get_connection();
-        db.execute_unwrap(
-            "ALTER TABLE sessions ADD COLUMN task_id TEXT;",
-        )
-        .await?;
-        db.execute_unwrap(
-            "ALTER TABLE sessions ADD COLUMN estimated_seconds BIGINT;",
-        )
-        .await?;
-        db.execute_unwrap(
-            "ALTER TABLE sessions ADD COLUMN labels TEXT;",
-        )
-        .await?;
+        db.execute_unwrap("ALTER TABLE sessions ADD COLUMN task_id TEXT;")
+            .await?;
+        db.execute_unwrap("ALTER TABLE sessions ADD COLUMN estimated_seconds BIGINT;")
+            .await?;
+        db.execute_unwrap("ALTER TABLE sessions ADD COLUMN labels TEXT;")
+            .await?;
         Ok(())
     }
 
