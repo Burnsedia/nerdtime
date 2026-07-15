@@ -1,0 +1,6 @@
+[workspace]
+resolver = "2"
+members = ["nerd", "nerdtime-core", "nerdtime-api", "nerdtime-api/migration"]
+
+[workspace.dependencies]
+loco-rs = { version = "0.16" }
