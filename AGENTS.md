@@ -50,6 +50,8 @@ cargo clippy --all-features -- -D warnings
 
 ## Git
 
+- **Branch per feature** — create a new branch for each logical change (e.g. `feat/github-oauth`, `fix/sync-timeout`, `refactor/cli-args`). Never commit unrelated changes on the same branch.
+- **Branch naming convention** — use kebab-case with conventional prefix: `feat/`, `fix/`, `refactor/`, `chore/`, `docs/`.
 - **Commit logically** — never lump unrelated changes into one commit. Separate concerns (e.g. CLI changes → one commit, backend → another, Docker → another).
 - **Write meaningful messages** — use conventional commits (`feat:`, `fix:`, `chore:`, `docs:`, `refactor:`) followed by a brief description of what and why.
 - **Never force-push** or amend pushed commits.
