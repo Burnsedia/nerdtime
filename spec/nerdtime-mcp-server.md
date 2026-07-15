@@ -59,7 +59,10 @@ nerdtime-mcp/
 │   │   ├── status.rs   # get_status tool
 │   │   ├── list.rs     # list_sessions tool
 │   │   ├── stats.rs    # get_stats tool
-│   │   └── sync.rs     # sync tool
+│   │   ├── sync.rs     # sync tool
+│   │   ├── task.rs     # task_create, task_list, task_matrix, task_complete, task_edit tools
+│   │   ├── devlog.rs   # devlog_log_session, devlog_query, devlog_get_decisions tools
+│   │   └── suggest.rs  # what_should_i_work_on tool
 │   └── state.rs        # AppState: db connection, config
 ```
 
@@ -168,6 +171,114 @@ Sync unsynced sessions to the API backend.
 | **inputSchema** | `{}` |
 | **output** | `{ synced: number, failed: number, message: string }` |
 
+### 7. `task_create`
+
+Create a task with Eisenhower Matrix prioritization.
+
+| Property | Value |
+|----------|-------|
+| **name** | `task_create` |
+| **description** | Create a new task with optional Eisenhower Matrix urgency/importance ratings. |
+| **inputSchema** | `{ project: string, title: string, description?: string, estimate?: string, urgency?: number, importance?: number, quadrant?: number }` |
+| **output** | `{ id: string, project: string, title: string, urgency?: number, importance?: number }` |
+
+If neither `urgency`/`importance` nor `quadrant` is provided, defaults to 3/3.
+
+### 8. `task_list`
+
+List tasks, optionally filtered.
+
+| Property | Value |
+|----------|-------|
+| **name** | `task_list` |
+| **description** | List tasks, optionally filtered by project, status, or Eisenhower quadrant. |
+| **inputSchema** | `{ project?: string, status?: string, quadrant?: number }` |
+| **output** | `{ tasks: [{ id, project, title, status, urgency?, importance?, estimated_seconds?, actual_seconds? }] }` |
+
+### 9. `task_matrix`
+
+Get the Eisenhower Matrix view of all tasks.
+
+| Property | Value |
+|----------|-------|
+| **name** | `task_matrix` |
+| **description** | Get tasks organized by Eisenhower quadrant (Do First, Schedule, Delegate, Eliminate). |
+| **inputSchema** | `{ project?: string }` |
+| **output** | `{ q1: Task[], q2: Task[], q3: Task[], q4: Task[], unprioritized: Task[] }` |
+
+### 10. `task_complete`
+
+Mark a task as completed.
+
+| Property | Value |
+|----------|-------|
+| **name** | `task_complete` |
+| **description** | Mark a task as completed. |
+| **inputSchema** | `{ task_id: string }` |
+| **output** | `{ id: string, status: string, completed_at: string }` |
+
+### 11. `task_edit`
+
+Edit a task's fields.
+
+| Property | Value |
+|----------|-------|
+| **name** | `task_edit` |
+| **description** | Edit a task's title, estimate, urgency, or importance. |
+| **inputSchema** | `{ task_id: string, title?: string, estimate?: string, urgency?: number, importance?: number, quadrant?: number }` |
+| **output** | `{ id: string, title: string, urgency?: number, importance?: number }` |
+
+### 12. `what_should_i_work_on`
+
+Get a deterministic work recommendation based on available time and energy.
+
+| Property | Value |
+|----------|-------|
+| **name** | `what_should_i_work_on` |
+| **description** | Analyze open tasks and recommend what to work on based on available time, energy level, and Eisenhower priority. Deterministic — no LLM involved. |
+| **inputSchema** | `{ time_minutes?: number, energy?: "low" | "medium" | "high", blocked?: boolean }` |
+| **output** | `{ task?: { id, title, project, urgency, importance, quadrant, estimated_seconds }, reason: string, alternatives: Task[], fitting_tasks: Task[], oversized_tasks: Task[] }` |
+
+Decision tree:
+1. Filter tasks by quadrant (Q1 → Q2 → Q3 → Q4)
+2. Prune by available time (task estimate > time available? → oversized)
+3. If blocked, deprioritize blocked tasks
+4. Energy: low → favor Q3/Q4 quick wins; medium → Q1; high → Q2 strategic
+5. Return top candidate + alternatives
+
+### 13. `devlog_log_session`
+
+Log a development session entry.
+
+| Property | Value |
+|----------|-------|
+| **name** | `devlog_log_session` |
+| **description** | Log a structured development session entry with context, decisions, and author attribution. Called by AI agents after completing a task batch. |
+| **inputSchema** | `{ title: string, role: "human" | "ai" | "hybrid", tags?: string[], context?: string, changes?: string[], decisions?: string[], commits?: string[] }` |
+| **output** | `{ id: string, date: string, title: string }` |
+
+### 14. `devlog_query`
+
+Search development log entries.
+
+| Property | Value |
+|----------|-------|
+| **name** | `devlog_query` |
+| **description** | Search DEVLOG entries by keyword or tag. Uses SQLite FTS5 for full-text search. |
+| **inputSchema** | `{ query: string, tags?: string[], limit?: number }` |
+| **output** | `{ entries: [{ id, date, title, role, tags, snippet }] }` |
+
+### 15. `devlog_get_decisions`
+
+Retrieve all logged technical decisions.
+
+| Property | Value |
+|----------|-------|
+| **name** | `devlog_get_decisions` |
+| **description** | Get all technical decisions from DEVLOG entries, optionally filtered by tag. |
+| **inputSchema** | `{ tag?: string }` |
+| **output** | `{ decisions: [{ date, title, decisions: string[], tags: string[] }] }` |
+
 ## MCP Resources (optional enhancement)
 
 Read-only data that agents can access without calling tools:
@@ -177,6 +288,9 @@ Read-only data that agents can access without calling tools:
 | `nerdtime://status` | Current tracking status | JSON with active session or null |
 | `nerdtime://sessions/recent?limit=5` | Recent sessions | JSON array of sessions |
 | `nerdtime://stats` | Time per project | JSON array of project stats |
+| `nerdtime://tasks/matrix` | Eisenhower Matrix view | JSON with q1-q4 arrays |
+| `nerdtime://devlog/recent?limit=5` | Recent devlog entries | JSON array |
+| `nerdtime://devlog/decisions` | All technical decisions | JSON array of decisions |
 
 ## Entrypoint (`main.rs`)
 
@@ -197,6 +311,15 @@ async fn main() -> anyhow::Result<()> {
         list_sessions_tool(),
         get_stats_tool(),
         sync_tool(),
+        task_create_tool(),
+        task_list_tool(),
+        task_matrix_tool(),
+        task_complete_tool(),
+        task_edit_tool(),
+        what_should_i_work_on_tool(),
+        devlog_log_session_tool(),
+        devlog_query_tool(),
+        devlog_get_decisions_tool(),
     );
 
     let server = Server::new(service)
@@ -322,6 +445,9 @@ These already exist in the CLI's `db.rs` — the extraction plan in `spec/tauri-
 | `nerdtime-mcp/src/tools/list.rs` | list_sessions handler |
 | `nerdtime-mcp/src/tools/stats.rs` | get_stats handler |
 | `nerdtime-mcp/src/tools/sync.rs` | sync handler |
+| `nerdtime-mcp/src/tools/task.rs` | task_create, task_list, task_matrix, task_complete, task_edit handlers |
+| `nerdtime-mcp/src/tools/devlog.rs` | devlog_log_session, devlog_query, devlog_get_decisions handlers |
+| `nerdtime-mcp/src/tools/suggest.rs` | what_should_i_work_on handler |
 
 ### Modified files
 
@@ -338,11 +464,14 @@ These already exist in the CLI's `db.rs` — the extraction plan in `spec/tauri-
 | Phase | Time |
 |-------|------|
 | Scaffold `nerdtime-mcp` crate + deps | 30 min |
-| Implement state + tool handlers | 2-3 hours |
+| Implement session tool handlers (start/stop/status/list/stats/sync) | 2-3 hours |
+| Implement task tool handlers (create/list/matrix/complete/edit) | 2 hours |
+| Implement devlog tool handlers (log_session/query/get_decisions) | 1 hour |
+| Implement what_should_i_work_on handler | 1 hour |
 | Add git detection helpers to `nerdtime-db` | 30 min |
 | Testing with Cline/Claude Desktop | 1 hour |
 | Documentation (AGENTS.md, config examples) | 30 min |
-| **Total** | **~5-6 hours** |
+| **Total** | **~9-10 hours** |
 
 ## Edge cases & notes
 
@@ -353,3 +482,6 @@ These already exist in the CLI's `db.rs` — the extraction plan in `spec/tauri-
 - **Logging**: All server logs go to stderr (never stdout), per MCP stdio spec
 - **Error format**: Tool errors return structured `McpError` with `is_handled: true` so the AI sees a clear message
 - **Security**: The MCP server has access to the local SQLite database and config. It inherits the user's permissions. No network exposure (stdio only)
+- **Task fallbacks**: `task_create` with no urgency/importance defaults to 3/3 (center of matrix)
+- **Devlog FTS5**: Create FTS5 virtual table on `devlog_entries` for fast `devlog_query`
+- **Author attribution**: `devlog_log_session` called by AI agents sets `role: "ai"`; human CLI prompts default to `"human"`
