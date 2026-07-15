@@ -41,7 +41,9 @@ fn git_branch() -> Option<String> {
         .ok()
         .and_then(|o| {
             if o.status.success() {
-                String::from_utf8(o.stdout).ok().map(|s| s.trim().to_string())
+                String::from_utf8(o.stdout)
+                    .ok()
+                    .map(|s| s.trim().to_string())
             } else {
                 None
             }
@@ -67,13 +69,11 @@ fn git_commit_hash() -> Option<String> {
 }
 
 pub fn start_session(conn: &Connection, project: &str, desc: Option<&str>) -> Result<()> {
-    let active: bool = conn
-        .query_row(
-            "SELECT COUNT(*) FROM sessions WHERE ended_at IS NULL",
-            [],
-            |row| row.get::<_, i64>(0),
-        )?
-        > 0;
+    let active: bool = conn.query_row(
+        "SELECT COUNT(*) FROM sessions WHERE ended_at IS NULL",
+        [],
+        |row| row.get::<_, i64>(0),
+    )? > 0;
 
     if active {
         anyhow::bail!("An active session already exists. Stop it first with `nerd stop`.");
@@ -89,11 +89,7 @@ pub fn start_session(conn: &Connection, project: &str, desc: Option<&str>) -> Re
         params![id, project, branch, commit, desc, now],
     )?;
 
-    println!(
-        "{} Tracking started for {}",
-        "✓".green(),
-        project.bold()
-    );
+    println!("{} Tracking started for {}", "✓".green(), project.bold());
     if let Some(ref b) = branch {
         println!("  branch: {}", b.cyan());
     }
@@ -238,9 +234,11 @@ fn map_session(row: &rusqlite::Row) -> rusqlite::Result<Session> {
         started_at: chrono::DateTime::parse_from_rfc3339(&row.get::<_, String>(5)?)
             .map(|d| d.to_utc())
             .unwrap_or_default(),
-        ended_at: row
-            .get::<_, Option<String>>(6)?
-            .and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok().map(|d| d.to_utc())),
+        ended_at: row.get::<_, Option<String>>(6)?.and_then(|s| {
+            chrono::DateTime::parse_from_rfc3339(&s)
+                .ok()
+                .map(|d| d.to_utc())
+        }),
         is_synced: row.get::<_, i64>(7)? != 0,
     })
 }
@@ -260,11 +258,7 @@ pub fn sync_sessions(conn: &Connection) -> Result<()> {
         return Ok(());
     }
 
-    println!(
-        "{} Syncing {} session(s)...",
-        "↻".cyan(),
-        sessions.len()
-    );
+    println!("{} Syncing {} session(s)...", "↻".cyan(), sessions.len());
 
     let payload: Vec<nerdtime_core::SyncPayload> = sessions
         .iter()
@@ -294,6 +288,13 @@ pub fn sync_sessions(conn: &Connection) -> Result<()> {
             // Mark all as synced
             conn.execute("UPDATE sessions SET is_synced = 1 WHERE is_synced = 0", [])?;
             println!("{} Sync complete!", "✓".green());
+        }
+        Ok(resp) if resp.status().as_u16() == 401 || resp.status().as_u16() == 403 => {
+            anyhow::bail!(
+                "Sync rejected ({}). An active subscription is required. Visit {} to upgrade.",
+                resp.status(),
+                "https://nerdtime.dev/settings"
+            );
         }
         Ok(resp) => {
             anyhow::bail!("Sync failed with status: {}", resp.status());

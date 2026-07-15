@@ -3,7 +3,26 @@ use loco_rs::prelude::*;
 use nerdtime_core::SyncPayload;
 use uuid::Uuid;
 
-use crate::models::sessions;
+use crate::models::{
+    sessions,
+    subscriptions::{self, BillingSettings},
+};
+
+async fn require_subscription(ctx: &AppContext, user_id: Uuid) -> Result<()> {
+    let settings = BillingSettings::from_settings(&ctx.config.settings);
+    if !settings.enabled {
+        return Ok(()); // billing off — allow
+    }
+
+    let sub = subscriptions::Model::find_or_create(&ctx.db, user_id).await?;
+    if sub.tier != "free" && sub.is_active() {
+        Ok(())
+    } else {
+        Err(Error::Unauthorized(
+            "active subscription required for sync".to_string(),
+        ))
+    }
+}
 
 pub async fn sync_sessions(
     auth: auth::JWT,
@@ -15,9 +34,10 @@ pub async fn sync_sessions(
         Err(_) => return unauthorized("invalid user"),
     };
 
+    require_subscription(&ctx, user_id).await?;
+
     for session in &payload {
-        sessions::Model::upsert_sync(&ctx.db, user_id, session)
-            .await?;
+        sessions::Model::upsert_sync(&ctx.db, user_id, session).await?;
     }
 
     format::json(serde_json::json!({"status": "ok", "count": payload.len()}))
@@ -33,6 +53,8 @@ pub async fn list_sessions(
         Err(_) => return unauthorized("invalid user"),
     };
 
+    require_subscription(&ctx, user_id).await?;
+
     let sessions = sessions::Model::find_by_user(
         &ctx.db,
         user_id,
@@ -44,14 +66,13 @@ pub async fn list_sessions(
     format::json(sessions)
 }
 
-pub async fn get_stats(
-    auth: auth::JWT,
-    State(ctx): State<AppContext>,
-) -> Result<Response> {
+pub async fn get_stats(auth: auth::JWT, State(ctx): State<AppContext>) -> Result<Response> {
     let user_id = match Uuid::parse_str(&auth.claims.pid) {
         Ok(id) => id,
         Err(_) => return unauthorized("invalid user"),
     };
+
+    require_subscription(&ctx, user_id).await?;
 
     let stats = sessions::Model::stats_by_user(&ctx.db, user_id).await?;
     format::json(stats)

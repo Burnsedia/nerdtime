@@ -3,4 +3,5 @@
 
 pub mod prelude;
 pub mod sessions;
+pub mod subscriptions;
 pub mod users;

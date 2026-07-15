@@ -36,6 +36,12 @@ cargo test --workspace   # CI also needs Redis
 # Lint
 cargo fmt --all -- --check
 cargo clippy --all-features -- -D warnings
+
+# Billing env vars
+BILLING_ENABLED=false
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
+STRIPE_PRICE_ID=
 ```
 
 ## Architecture
@@ -46,7 +52,53 @@ cargo clippy --all-features -- -D warnings
 - **Migrations**: auto-run on server start (`auto_migrate: true`). New migration files go in `nerdtime-api/migration/src/` with name `mYYYYMMDD_000000_name.rs` and must be registered in `lib.rs`
 - **SeaORM entities** in `src/models/_entities/` (generated-style), companion models with business logic in `src/models/`
 - **Controllers** export `pub fn routes() -> Routes` and are registered in `src/app.rs`
-- **Auth**: JWT via `loco_rs::auth::jwt`; all API endpoints except `/api/health` require `auth::JWT` extractor
+- **Auth**: JWT via `loco_rs::auth::jwt`; all API endpoints except `/api/health` and `/api/billing/webhook` require `auth::JWT` extractor
+- **New SeaORM entities** need an `impl ActiveModelBehavior for ActiveModel` (can be empty) — required by `DeriveEntityModel` derive macro
+- **Error helpers**: `Error::string(&format!(...))` for string errors. `Error::InternalServerError` is a unit variant (no payload). `bad_request()` / `unauthorized()` return `Result<Response>` — do not wrap in `.map_err()`
+
+### Billing & Subscription Gating
+
+- `settings.billing.enabled` toggle (`BILLING_ENABLED` env var); `false` = all features free, skip gating
+- `BillingSettings::from_settings(&ctx.config.settings)` loads from config YAML `settings.billing.*` block
+- `require_subscription()` helper in sync controller — no-op when billing disabled
+- `subscriptions` table: `user_id` (FK), `stripe_customer_id`, `stripe_subscription_id`, `status`, `tier`, `current_period_end`
+- `Model::is_active()` returns `true` for `free`, `active`, `trialing` statuses
+- `find_or_create()` auto-creates a `free` tier row on first access
+
+### SaaS / Self-Host Deployment
+
+Same binary serves both models — no compile-time feature flags:
+
+- **Multi-tenant SaaS**: every query filters by `user_id` (JWT claim), full Stripe billing gating. `BILLING_ENABLED=true` enables Stripe.
+- **Single-tenant self-host**: `BILLING_ENABLED=false` (default) — all features free. `docker-compose.yml` for PostgreSQL + API behind Traefik with auto-TLS.
+- CLI is offline-first; backend is optional for self-host.
+- Per-user data isolation via `user_id` FK on `sessions` + `subscriptions` tables.
+
+### MCP Server (Planned)
+
+An MCP (Model Context Protocol) server exposing nerdtime CLI commands as tools is planned. It does not exist yet.
+
+Proposed tools: `start_tracking`, `stop_tracking`, `get_status`, `list_sessions`, `get_stats`, `sync`.
+
+Would use the same backing store (`~/.config/nerdtime/data.db`, SQLite) as the CLI. Could be a standalone binary or a `nerd mcp` subcommand.
+
+## API Endpoints
+
+| Endpoint | Method | Auth | Purpose |
+|---|---|---|---|
+| `/api/health` | GET | No | Health check |
+| `/api/auth/register` | POST | No | User registration |
+| `/api/auth/login` | POST | No | JWT login |
+| `/api/auth/current` | GET | JWT | Current user profile |
+| `/api/sync` | POST | JWT | Batch upsert sessions |
+| `/api/sessions` | GET | JWT | List sessions (`?project=`, `?limit=`) |
+| `/api/stats` | GET | JWT | Aggregate time per project |
+| `/api/billing/checkout` | POST | JWT | Stripe Checkout Session |
+| `/api/billing/webhook` | POST | No | Stripe webhook receiver (HMAC-signed) |
+| `/api/billing/portal` | GET | JWT | Stripe Customer Portal redirect |
+| `/api/billing/info` | GET | JWT | Current subscription tier/status |
+
+Stripe integration uses raw `reqwest` calls to Stripe REST API (not the `stripe` crate). Webhook signature verification uses `hmac` + `sha2` + `hex`.
 
 ## Git
 

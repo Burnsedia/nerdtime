@@ -140,3 +140,145 @@ Every line must answer: "Would an agent likely miss this without help?" Excluded
 ---
 
 *Session ended with project on `master` branch, 17 commits across 2 branches, full workspace compiling cleanly, AGPL-3.0-only license applied.*
+
+---
+
+## 2026-07-14: Open Core + Paid Sync Billing
+
+### Business Model Decision
+
+Chose **Open Core + Paid Sync** (Model 2 of the spec): the CLI is free and AGPL-licensed; cloud sync is the paid feature at ~$4/mo via Stripe subscriptions. Self-host deployments get everything free by setting `BILLING_ENABLED=false`.
+
+### Subscriptions Table & Migration
+
+Added `m20260103_000001_subscriptions` migration creating the `subscriptions` table:
+
+| Column | Type | Purpose |
+|--------|------|---------|
+| `id` | PK (auto) | Primary key |
+| `user_id` | UUID (FK → users) | Owner |
+| `stripe_customer_id` | String? | Stripe customer reference |
+| `stripe_subscription_id` | String? | Stripe subscription reference |
+| `status` | String | `active`, `trialing`, `past_due`, `canceled`, `incomplete` |
+| `tier` | String | `free` or `pro` |
+| `current_period_end` | TimestampTz? | Subscription period end |
+
+SeaORM entity in `_entities/subscriptions.rs` with `Relation::User` (belongs_to). Companion model in `models/subscriptions.rs`:
+
+- `BillingSettings` — deserialized from `config.settings.billing.*`; provides `from_settings()` and `Default` (billing off)
+- `Model::find_or_create()` — auto-creates `free` tier row on first access
+- `Model::is_active()` — `active`, `trialing`, or `free` counts as active
+- `Model::update_stripe()` — webhook handler that sets customer/subscription IDs and upgrades to `pro`
+- `Model::set_tier()` — manual tier change (e.g., subscription canceled → revert to `free`)
+
+**Quirk:** New SeaORM entities require `impl ActiveModelBehavior for ActiveModel` (can be empty body) — `DeriveEntityModel` derive macro enforces it.
+
+### Billing Controller
+
+`src/controllers/billing.rs` with 4 endpoints:
+
+| Endpoint | Auth | Purpose |
+|----------|------|---------|
+| `POST /api/billing/checkout` | JWT | Creates Stripe Checkout Session, returns URL for redirect |
+| `POST /api/billing/webhook` | None (HMAC) | Stripe event receiver — verifies HMAC-SHA256 signature, handles `checkout.session.completed`, `customer.subscription.*` |
+| `GET /api/billing/portal` | JWT | Creates Stripe Customer Portal session, returns redirect URL |
+| `GET /api/billing/info` | JWT | Returns current tier, status, `is_active` for the user |
+
+**Stripe integration approach:** Uses raw `reqwest` calls to Stripe REST API (not the `stripe` crate). Reason: simpler dependency management, more transparent error handling, full control over API version (`2025-02-24.acacia`).
+
+**Webhook security:** HMAC-SHA256 signature verification via `hmac` + `sha2` + `hex` crates (not the `stripe` crate). Parses `stripe-signature` header for `t=` timestamp and `v1=` signature, computes expected HMAC, compares.
+
+**Quirk:** `Error::InternalServerError` is a **unit variant** (no data payload). For string errors, use `Error::string(&format!(...))`. The `bad_request()` and `unauthorized()` helpers return `Result<Response>` directly — do not wrap in `.map_err()`.
+
+### Subscription Gating
+
+`src/controllers/sync.rs` now has a `require_subscription()` helper called at the start of `sync_sessions()`, `list_sessions()`, and `get_stats()`:
+
+1. Loads `BillingSettings` from config
+2. If `enabled == false`, returns `Ok(())` (skip gating)
+3. If enabled, looks up user's subscription via `find_or_create()`
+4. Checks `is_active()` — returns `Unauthorized` if not active
+
+This means `health` and all `auth` endpoints remain free when billing is on. The `/api/billing/webhook` endpoint is also free (unauthenticated, HMAC-signed).
+
+### SaaS vs Self-Host Architecture
+
+Documented in AGENTS.md:
+
+- **Same binary** (`nerdtime-api`) serves both models — no compile-time feature flags
+- **Multi-tenant SaaS**: `BILLING_ENABLED=true`, JWT per-user data isolation via `user_id` FK on all tables, full Stripe integration
+- **Single-tenant self-host**: `BILLING_ENABLED=false` (default), docker-compose with PostgreSQL + API + Traefik, CLI offline-first needs no backend
+- CLI stores configurable `api_url` — no hardcoded endpoint
+
+### MCP Server (Planned)
+
+An MCP (Model Context Protocol) server was designed but not yet implemented. Proposed tools matching CLI commands:
+
+- `start_tracking` (project, description?)
+- `stop_tracking` → returns duration
+- `get_status` → active session with elapsed time
+- `list_sessions` (project?, limit=10)
+- `get_stats` → aggregate time per project
+- `sync` → push unsynced sessions to backend
+
+Would use the same SQLite backing store (`~/.config/nerdtime/data.db`) as the CLI. Could ship as a standalone binary or a new `nerd mcp` subcommand.
+
+### Compile Errors Encountered
+
+During development of `billing.rs`, three errors needed fixing:
+
+1. **`Error::string(&format!(...))`** — The `&` is required because `Error::string` takes `&str`, not `String` (format!() returns String).
+2. **`serde_json::map_err(|_| bad_request(...))?`** — `bad_request()` returns `Result<Response>`, so `.map_err()` inside a `Result::map_err` wraps it as `Result<Response, Error>`, which `?` can't convert. Fixed by using `Error::string(...)` directly.
+3. **Handler trait not satisfied** — `webhook` handler with `(State, Bytes, HeaderMap)` extractor tuple wasn't recognized. Switched from `Bytes` to `String` body extractor, which resolved it.
+
+### Files Changed
+
+```
+NEW: nerdtime-api/migration/src/m20260103_000001_subscriptions.rs
+NEW: nerdtime-api/src/models/_entities/subscriptions.rs
+NEW: nerdtime-api/src/models/subscriptions.rs
+NEW: nerdtime-api/src/controllers/billing.rs
+MOD: nerdtime-api/Cargo.toml                     (+reqwest, hmac, sha2, hex)
+MOD: nerdtime-api/config/development.yaml         (+settings.billing block)
+MOD: nerdtime-api/config/production.yaml          (+settings.billing block)
+MOD: nerdtime-api/migration/src/lib.rs             (+subscriptions migration)
+MOD: nerdtime-api/src/app.rs                       (+billing routes)
+MOD: nerdtime-api/src/controllers/mod.rs            (+billing module)
+MOD: nerdtime-api/src/controllers/sync.rs           (+subscription gating)
+MOD: nerdtime-api/src/models/_entities/mod.rs       (+subscriptions entity)
+MOD: nerdtime-api/src/models/_entities/prelude.rs   (+Subscriptions re-export)
+MOD: nerdtime-api/src/models/mod.rs                 (+subscriptions module)
+MOD: AGENTS.md                                      (comprehensive update)
+MOD: DEVLOG.md                                      (this entry)
+```
+
+*Session ended with workspace compiling cleanly (`cargo build --workspace`), clippy clean (4 pre-existing warnings), rustfmt clean. 17 existing commits + uncommitted changes above.*
+
+### MVP Gap Fixes
+
+After reviewing what was actually needed to ship the MVP, three issues were fixed:
+
+1. **Wrong webhook lookup for non-checkout events** — `customer.subscription.updated` and `.created` events (which carry a `stripe_customer_id` like `"cus_xxx"` but no `client_reference_id`) were calling `users::Model::find_by_pid()` which expects a UUID. This silently failed for every non-checkout Stripe event. Fixed by adding `subscriptions::Model::find_by_stripe_customer_id()` that queries the subscriptions table directly, and using it in the webhook handler.
+
+2. **`customer.subscription.deleted` was a no-op** — The handler existed but only had a TODO comment. Now it looks up the subscription by `stripe_customer_id` and calls `set_tier(db, user_id, "free", "canceled")` to downgrade the user.
+
+3. **Missing index on `stripe_customer_id`** — The migration had no index on the column used for webhook lookups. Added `idx_subscriptions_stripe_customer_id` index via SeaORM's `Index::create()` API in the existing migration.
+
+**Files changed:** `src/models/subscriptions.rs` (new method), `src/controllers/billing.rs` (webhook fix), `migration/src/m20260103_000001_subscriptions.rs` (index).
+
+### Critical Gating Bug Fix
+
+`require_subscription()` in `sync.rs` was calling `sub.is_active()`, which returns `true` for `tier == "free"` (by design — free tier is always "active"). Combined with `find_or_create()` auto-creating a free row for every user, this meant **billing gating was completely non-functional** — every user passed the check regardless of billing status.
+
+Fix: changed the condition to `sub.tier != "free" && sub.is_active()`. When billing is enabled, free-tier users are now correctly rejected and must upgrade to proceed.
+
+### CLI Sync UX Improvement
+
+Previously, sync failures showed a cryptic raw status code (`"Sync failed with status: 403"`). Now 401/403 responses print a user-friendly message with a link to the upgrade page:
+```
+Sync rejected (403). An active subscription is required. Visit https://nerdtime.dev/settings to upgrade.
+```
+
+---
+
+*Session ended with workspace compiling cleanly (`cargo build --workspace`), fmt clean, clippy clean (4 pre-existing warnings). 17 existing commits + all changes above.*

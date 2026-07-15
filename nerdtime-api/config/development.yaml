@@ -89,6 +89,16 @@ database:
   # Recreating schema when application loaded.  This is a dangerous operation, make sure that you using this flag only on dev environments or test mode
   dangerously_recreate: false
 
+# Custom app settings
+settings:
+  billing:
+    enabled: false
+    stripe_secret_key: {{ get_env(name="STRIPE_SECRET_KEY", default="") }}
+    stripe_webhook_secret: {{ get_env(name="STRIPE_WEBHOOK_SECRET", default="") }}
+    price_id: {{ get_env(name="STRIPE_PRICE_ID", default="") }}
+    success_url: "http://localhost:5150/settings"
+    cancel_url: "http://localhost:5150/settings"
+
 # Authentication Configuration
 auth:
   # JWT authentication

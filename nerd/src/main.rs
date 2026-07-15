@@ -75,7 +75,13 @@ fn login(url: Option<&str>, token: &str) -> Result<()> {
 fn show_config() -> Result<()> {
     let cfg = config::load()?;
     println!("API URL:  {}", cfg.api_url);
-    println!("Token:    {}", if cfg.token.is_some() { "✓ set".green() } else { "not set".yellow() });
+    println!(
+        "Token:    {}",
+        if cfg.token.is_some() {
+            "✓ set".green()
+        } else {
+            "not set".yellow()
+        }
+    );
     Ok(())
 }
-
