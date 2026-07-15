@@ -1,5 +1,8 @@
 # Tauri Mobile App — Implementation Plan
 
+> **Pricing**: $10/mo (requires active SaaS subscription via Stripe).
+> **Platforms**: iOS, Android, macOS desktop, Linux desktop (no Windows).
+
 ## Architecture
 
 ```

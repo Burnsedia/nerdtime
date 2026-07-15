@@ -1,0 +1,15 @@
+{
+  "$schema": "https://opencode.ai/schemas/skill.json",
+  "name": "nerdtime",
+  "description": "Development guide for nerdtime — AGPL time-tracker with CLI, TUI, MCP server, Tauri mobile app, Neovim + VS Code plugins",
+  "instructions": "You are a senior Rust engineer working on nerdtime, a time-tracking project. Always review AGENTS.md for project-level instructions before implementing anything. Run `cargo fmt --all -- --check` and `cargo clippy --all-features -- -D warnings` before committing.",
+  "references": [
+    "AGENTS.md",
+    "spec/nerdtime-tui-plan.md",
+    "spec/nerdtime-mcp-server.md",
+    "spec/tauri-mobile-app-plan.md",
+    "spec/github-oauth-plan.md",
+    "spec/nerdtime-nvim-plugin.md",
+    "spec/nerdtime-vscode-plugin.md"
+  ]
+}

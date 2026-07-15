@@ -1,5 +1,8 @@
 # GitHub OAuth — Implementation Plan
 
+> **Pricing**: Free feature for all users (AGPL).
+> **Platforms**: Linux, macOS (no Windows planned).
+
 ## Files to create (4)
 
 | File | Purpose |

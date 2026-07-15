@@ -1,0 +1,89 @@
+{
+  "name": "nerdtime",
+  "displayName": "nerdtime",
+  "description": "Terminal-native time tracking for developers",
+  "version": "0.1.0",
+  "publisher": "nerdtime",
+  "license": "AGPL-3.0-only",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "nerdtime.start",
+        "title": "nerdtime: Start Tracking"
+      },
+      {
+        "command": "nerdtime.stop",
+        "title": "nerdtime: Stop Tracking"
+      },
+      {
+        "command": "nerdtime.toggle",
+        "title": "nerdtime: Toggle Tracking"
+      },
+      {
+        "command": "nerdtime.status",
+        "title": "nerdtime: Show Status"
+      },
+      {
+        "command": "nerdtime.sync",
+        "title": "nerdtime: Sync to Cloud"
+      },
+      {
+        "command": "nerdtime.log",
+        "title": "nerdtime: Show Recent Sessions"
+      }
+    ],
+    "configuration": {
+      "title": "nerdtime",
+      "properties": {
+        "nerdtime.autoStart": {
+          "type": "boolean",
+          "default": true,
+          "description": "Auto-start tracking when a workspace is opened"
+        },
+        "nerdtime.autoStop": {
+          "type": "boolean",
+          "default": true,
+          "description": "Auto-stop tracking when VS Code closes"
+        },
+        "nerdtime.cliPath": {
+          "type": "string",
+          "default": "nerd",
+          "description": "Path to the nerd CLI binary"
+        },
+        "nerdtime.projectDetection": {
+          "type": "string",
+          "enum": [
+            "git",
+            "folder"
+          ],
+          "default": "git",
+          "description": "How to detect the project name"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node",
+    "watch": "esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --watch",
+    "lint": "tsc --noEmit",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0",
+    "esbuild": "^0.20.0",
+    "@vscode/vsce": "^2.22.0"
+  }
+}

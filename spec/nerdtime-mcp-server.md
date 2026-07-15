@@ -1,5 +1,8 @@
 # nerdtime MCP Server — Implementation Plan
 
+> **Pricing**: Free (AGPL). Part of the free CLI tier.
+> **Platforms**: Linux, macOS (no Windows planned).
+
 ## Overview
 
 An MCP (Model Context Protocol) server that exposes nerdtime's time-tracking functionality as tools for AI coding agents (Cline, Claude Code, Cursor, etc.) and agent frameworks (Hermes, etc.).
