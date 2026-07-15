@@ -373,3 +373,86 @@ ae6a240  docs: add MVP launch plan with production-hardening and rollout checkli
 ```
 
 *All three pushed to origin/master. No code changes — pure planning and documentation.*
+
+---
+
+## 2026-07-15: Eisenhower Matrix, DEVLOG Spec, & Quantified-Self MVP Restructure
+
+### Context
+
+Continued from the launch planning session. The vision sharpened: nerdtime is **quantified self for developers**, not just a time tracker. This drove several spec updates and a re-prioritization of the roadmap.
+
+### Key Decisions
+
+#### DEVLOG is a core feature, not a side project
+
+The dev logging system (`nerd devlog`) that auto-captures commit data, session context, and technical decisions is essential to quantified self. Spec written at `spec/nerdtime-devlog.md`.
+
+- CLI subcommands: `new`, `edit`, `query`, `list`, `generate`
+- Post-commit hook auto-caches git data (SHA, lines changed, files)
+- `DEVLOG.md` is rendered from SQLite (deterministic)
+- MCP tools: `devlog_log_session`, `devlog_query`, `devlog_get_decisions`
+
+#### Heatmap is mandatory
+
+The heatmap is the visual proof of concept for quantified self — the thing users immediately understand. Moved from Phase 2 to Phase 1 (MVP). Terminal uses block chars, desktop/mobile gets SVG.
+
+#### Tasks need Eisenhower Matrix
+
+Tasks get urgency (1-5) and importance (1-5) fields, computed into 4 quadrants:
+
+| Quadrant | Meaning | Shorthand |
+|---|---|---|
+| Q1 | Urgent + Important (Do First) | `--q1` |
+| Q2 | Not Urgent + Important (Schedule) | `--q2` |
+| Q3 | Urgent + Not Important (Delegate) | `--q3` |
+| Q4 | Neither (Eliminate) | `--q4` |
+
+Plus a deterministic `nerd what-should-i-work-on` analysis paralysis helper that asks about time, energy, and blockers, then recommends a task using a decision tree — no LLM involved.
+
+#### MCP server is zero-cost for nerdtime
+
+The MCP server is a thin SQLite wrapper over stdio. AI agents pay their own token cost to call the tools. nerdtime never spends on inference.
+
+Tools expanded from 6 to 15:
+- 6 session tools (start, stop, status, list, stats, sync)
+- 5 task tools (create, list, matrix, complete, edit)
+- 3 devlog tools (log_session, query, get_decisions)
+- 1 what_should_i_work_on tool
+
+#### Stripe billing approach confirmed
+
+Deterministic decision tree for the analysis helper. MCP tools hook into the same SQLite — AI agents call them on their own dime. nerdtime pays $0 in token costs.
+
+### ROADMAP Restructure
+
+Phases reorganized from 5 loose phases to a tighter quantified-self narrative:
+
+| Phase | Theme | Key additions |
+|---|---|---|
+| Phase 0 | Foundation ✅ | CLI, sync, billing (unchanged) |
+| Phase 1 | **Quantified Self MVP** | Heatmap, insights, tasks+matrix, devlog, MCP server, ship |
+| Phase 2 | Editor ecosystem | Neovim, VS Code, TUI |
+| Phase 3 | Mobile + GitHub | Tauri app, GitHub sync, SVG export |
+| Phase 4 | Scale | Team features (deferred) |
+
+Heatmap, insights, tasks, devlog, and MCP all moved from deferred phases into the MVP.
+
+### Files Changed
+
+```
+MOD: spec/nerdtime-tasks.md              +Eisenhower Matrix, what-should-i-work-on, MCP tools, insights
+MOD: spec/nerdtime-mcp-server.md         +9 new tools (task, devlog, suggest), resources, effort estimate
+MOD: ROADMAP.md                          +restructured for quantified-self MVP
+NEW: spec/nerdtime-devlog.md             +full devlog spec (from earlier session)
+```
+
+### Git Commits
+
+```
+c518564  docs: add Eisenhower Matrix, analysis paralysis helper, and MCP tools to task spec
+3f713a6  docs: add task, devlog, and what-should-i-work-on tools to MCP server spec
+7e352f7  docs: restructure roadmap for quantified-self MVP with heatmap, tasks, devlog, and MCP server in Phase 1
+```
+
+*All pushed to origin/master. No code — pure spec and planning work.*
