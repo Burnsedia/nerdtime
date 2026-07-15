@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 mod config;
 mod db;
+mod insights;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -44,6 +45,20 @@ enum Commands {
     },
     /// Show configuration
     Config,
+    /// Show a heatmap of tracked time (weekday x hour grid)
+    Heatmap {
+        #[arg(short, long, default_value = "30")]
+        days: i64,
+        #[arg(short, long)]
+        project: Option<String>,
+    },
+    /// Show productivity insights and patterns
+    Insights {
+        #[arg(short, long, default_value = "30")]
+        days: i64,
+        #[arg(short, long)]
+        project: Option<String>,
+    },
 }
 
 fn main() -> Result<()> {
@@ -58,6 +73,16 @@ fn main() -> Result<()> {
         Commands::Log { project, limit } => db::list_sessions(&conn, project.as_deref(), *limit),
         Commands::Login { url, token } => login(url.as_deref(), token),
         Commands::Config => show_config(),
+        Commands::Heatmap { days, project } => {
+            let cells = db::heatmap_data(&conn, *days, project.as_deref())?;
+            print!("{}", insights::render_heatmap(&cells));
+            Ok(())
+        }
+        Commands::Insights { days, project } => {
+            let data = db::insights_data(&conn, *days, project.as_deref())?;
+            print!("{}", insights::render_insights(&data));
+            Ok(())
+        }
     }
 }
 
