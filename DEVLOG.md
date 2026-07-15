@@ -456,3 +456,23 @@ c518564  docs: add Eisenhower Matrix, analysis paralysis helper, and MCP tools t
 ```
 
 *All pushed to origin/master. No code — pure spec and planning work.*
+
+---
+
+## 2026-07-15: AGENTS.md Update
+
+### Changes
+
+Updated AGENTS.md to reflect the quantified-self vision and new features:
+
+- Added ROADMAP.md and DEVLOG.md references to the project overview
+- Added "log every commit in DEVLOG.md" to the git workflow
+- Added Tasks & Eisenhower Matrix section covering urgency/importance, quadrants, shorthand flags, and `nerd what-should-i-work-on`
+- Added DEVLOG section with subcommands and generation workflow
+- Trimmed MCP server section from 7 lines of speculation to 2 lines referencing the spec
+
+### Git Commits
+
+```
+5118482  docs: update AGENTS.md with quantified-self vision, task matrix, devlog workflow, and ROADMAP/DEVLOG references
+```
