@@ -1,0 +1,12 @@
+FROM rust:1.83-slim-bookworm
+
+RUN apt-get update && apt-get install -y pkg-config libssl-dev libsqlite3-dev && rm -rf /var/lib/apt/lists/*
+RUN cargo install loco-cli 2>/dev/null; cargo install cargo-watch
+
+WORKDIR /app
+COPY Cargo.toml Cargo.lock* ./
+COPY nerdtime-core nerdtime-core/
+COPY nerdtime-api nerdtime-api/
+
+EXPOSE 5150
+CMD ["cargo", "watch", "-w", "nerdtime-api", "-w", "nerdtime-core", "-x", "run -p nerdtime-api"]
