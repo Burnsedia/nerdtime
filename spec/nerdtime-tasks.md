@@ -17,6 +17,8 @@ CREATE TABLE tasks (
     title TEXT NOT NULL,
     description TEXT,
     estimated_seconds INTEGER,
+    urgency INTEGER,            -- 1-5 Eisenhower scale
+    importance INTEGER,         -- 1-5 Eisenhower scale
     status TEXT NOT NULL DEFAULT 'active',
     created_at TEXT NOT NULL,
     completed_at TEXT
@@ -79,9 +81,26 @@ pub struct SyncPayload {
 # Create a task
 nerd task add <project> "task title" --estimate 2h --desc "details"
 
+# Create with Eisenhower Matrix
+nerd task add <project> "fix login bug" --q1           # urgent + important
+nerd task add <project> "write docs"   --q2 --estimate 4h  # important, not urgent
+nerd task add <project> "reply to email" --q3          # urgent, not important
+nerd task add <project> "reorg notes"   --q4           # neither
+
+# Precision scales
+nerd task add <project> "refactor auth" --urgency 4 --importance 5
+
+# Prompt if neither --q* nor --urgency/--importance provided
+nerd task add <project> "reformat csvs"
+  Urgency (1-5): [3]
+  Importance (1-5): [3]
+
 # List tasks for a project
 nerd task list <project>
 nerd task list <project> --status completed
+
+# View Eisenhower Matrix
+nerd task matrix
 
 # Mark complete / cancel
 nerd task complete <task-id>
@@ -89,6 +108,9 @@ nerd task cancel <task-id>
 
 # Edit a task
 nerd task edit <task-id> --title "new title" --estimate 3h
+
+# Analysis paralysis helper
+nerd what-should-i-work-on
 ```
 
 ### Labels
@@ -109,6 +131,70 @@ nerd task edit my-task --label "bug,ui"
 # Clear labels
 nerd task edit my-task --label ""
 ```
+
+### Eisenhower Matrix view
+
+```
+$ nerd task matrix
+
+             Important
+                 │
+    Q2 (schedule)│ Q1 (do first)
+    ─────────────┼─────────────→ Urgent
+    Q4 (eliminate)│ Q3 (delegate)
+                 │
+
+  Q1 (Do First):
+    ● fix login bug       est 2h  act 0h   urg:5 imp:5
+    ● deploy hotfix       est 1h  act 0h   urg:5 imp:4
+
+  Q2 (Schedule):
+    ● refactor auth       est 4h  act 0h   urg:2 imp:5
+    ○ write tests         est 6h  act 3h   urg:1 imp:4
+
+  Q3 (Delegate):
+    ● respond to email    est 30m act 0h   urg:4 imp:2
+
+  Q4 (Eliminate):
+    ● reorganize notes    est 1h  act 0h   urg:1 imp:1
+```
+
+Quadrant is computed: `(urgency > 3, importance > 3)` → Q1-Q4. The matrix command shows all tasks plotted on the Eisenhower grid, grouped by quadrant.
+
+### Analysis paralysis helper
+
+```
+$ nerd what-should-i-work-on
+
+Let's figure it out. I'll ask a few questions.
+
+? How much time do you have? [1h]
+? Energy level: low / medium / high [medium]
+? Are you blocked on anything? [yes - waiting on PR review]
+
+  Scanning your open tasks...
+
+  High-priority items:
+    - fix login bug (Q1, urg:5 imp:5, est 2h) ❌ too big for 1h
+    - deploy hotfix (Q1, urg:5 imp:4, est 1h)  ✓ fits
+    - respond to email (Q3, urg:4 imp:2, est 30m) ✓ fits
+
+  You're waiting on a PR review, so avoid big tasks.
+
+  Suggestion: Deploy hotfix (1h). If that finishes early,
+  respond to the email thread. Leave login bug for tomorrow
+  when you have a full block.
+
+? Start tracking "deploy hotfix"? [Y/n]
+```
+
+Deterministic decision tree — no LLM involved:
+
+1. Filter tasks by quadrant priority (Q1 → Q2 → Q3 → Q4)
+2. Prune by time available (est > available time? skip)
+3. Check blocks (if blocked on X, deprioritize X)
+4. Energy tier: low → favor quick wins (Q3/Q4); medium → Q1; high → Q2 strategic
+5. Recommend top candidate, ask if user wants to start tracking
 
 ### Start/stop with tasks and labels
 
@@ -235,6 +321,55 @@ Top tasks (in progress):
 
 `nerd heatmap` unchanged — still shows activity by weekday × hour. Tasks are a filter dimension, not a visualization dimension.
 
+### Eisenhower insights
+
+```
+$ nerd insights --matrix
+
+  Time allocation by quadrant (last 30 days):
+  Q1 (do first):      12h 30m  42%  ← good, urgent firefighting
+  Q2 (schedule):       4h 15m  14%  ← low, strategic work getting neglected
+  Q3 (delegate):       8h 30m  28%  ← high, are these really yours?
+  Q4 (eliminate):      5h 00m  17%  ← consider cutting this
+
+  📊 Gap: Q2 has 3 tasks (est 14h total) with only 4h tracked this month.
+  You're spending more time on Q3/Q4 than Q2. Delegate or cut Q3.
+```
+
+Also available per-author-type:
+
+```
+$ nerd insights --matrix --by-author
+
+  Q1 (do first):
+    human:  8h 00m   64%
+    hybrid: 3h 30m   28%
+    ai:     1h 00m    8%
+
+  Q2 (schedule):
+    human:  1h 00m   24%
+    hybrid: 2h 00m   47%
+    ai:     1h 15m   29%
+```
+
+### MCP Tools
+
+The MCP server exposes task operations to AI coding agents:
+
+| Tool | Purpose | Params |
+|---|---|---|
+| `task_list` | List tasks, optionally by quadrant | `project`, `status`, `quadrant` |
+| `task_create` | Create a task with matrix | `project`, `title`, `urgency`, `importance`, `estimate` |
+| `task_matrix` | Return Eisenhower Matrix view | `project` (optional filter) |
+| `task_complete` | Mark task done | `task_id` |
+| `task_edit` | Update urgency/importance/title | `task_id`, `urgency?`, `importance?`, `title?` |
+| `what_should_i_work_on` | Get a recommendation | None (pulls from local decision tree) |
+| `devlog_log_session` | Log a devlog entry | `title`, `role`, `tags`, `context`, `changes[]`, `decisions[]` |
+| `devlog_query` | Search devlog entries | `query`, `tags`, `limit` |
+| `devlog_get_decisions` | Return all logged decisions | `tag` (optional filter) |
+
+All tools are thin wrappers over SQLite — zero API calls, zero token cost for nerdtime. The AI agent pays for its own thinking time to decide when to call them.
+
 ### Sync
 
 - `task_id` and `estimated_seconds` fields are part of `SyncPayload`
@@ -306,7 +441,7 @@ ORDER BY total_seconds DESC;
 ## Edge cases
 
 | Case | Behavior |
-|---|---|
+|---|---|---|
 | Session without task | `task_id = NULL` — existing behavior unchanged |
 | Task deleted while session active | Session still references the task UUID (no FK constraint). `nerd stop` works fine, `nerd task list` shows "(deleted)" |
 | Complete task mid-session | `nerd task complete` while session is running → warn "Task has an active session" |
@@ -318,6 +453,12 @@ ORDER BY total_seconds DESC;
 | Label with special characters | JSON-escaped. `sqlite` json_each handles them. Slashes/colons/spaces allowed. |
 | Empty label list (`--label ""`) | Sets `labels = NULL` — clears all labels |
 | No sessions with a given label | `nerd summary --label X` shows "No sessions found" |
+| No urgency/importance set | `urgency = NULL, importance = NULL` — excluded from matrix view, shown as "unprioritized" |
+| Both `--q1` and `--urgency` given | `--q*` shorthand takes precedence, stores numeric mapping: Q1=5/5, Q2=1/5, Q3=5/1, Q4=1/1 |
+| Neither `--q*` nor `--urgency/--importance` | Prompt user for urgency/importance (defaults to 3/3) |
+| All tasks in Q4 | `nerd what-should-i-work-on` suggests taking a break or re-evaluating priorities |
+| No energy level specified | Default to `medium` in `nerd what-should-i-work-on` |
+| No time block specified | Default to `1h` in `nerd what-should-i-work-on` |
 
 ## New files and changes
 
@@ -326,7 +467,7 @@ ORDER BY total_seconds DESC;
 | `nerd/Cargo.toml` | No new deps (serde_json already included for sync) |
 | `nerd/src/db.rs` | + task CRUD functions, + task_id/estimated_seconds/labels in start_session/stop_session/map_session, + helper for unique prefix resolution, + summary query |
 | `nerd/src/insights.rs` | + task breakdown in estimate output, + label breakdown in insights |
-| `nerd/src/main.rs` | + `Task` subcommand with `Add`/`List`/`Complete`/`Edit`/`Cancel` sub-subcommands, + `--task`, `--estimate`, `--label` on `Start`, + `Summary` subcommand |
+| `nerd/src/main.rs` | + `Task` subcommand with `Add`/`List`/`Matrix`/`Complete`/`Edit`/`Cancel` sub-subcommands, + `--q1`/`--q2`/`--q3`/`--q4`/`--urgency`/`--importance` flags on `Add`/`Edit`, + `--quadrant` filter on `List`, + `--task`, `--estimate`, `--label` on `Start`, + `Summary` subcommand, + `WhatShouldIWorkOn` subcommand |
 | `nerdtime-core/src/lib.rs` | + `task_id`, `estimated_seconds`, `labels` to `SyncPayload` |
 | `nerdtime-api/migration/src/` | New migration adding `task_id`, `estimated_seconds`, `labels` columns to `sessions` table |
 
@@ -359,6 +500,41 @@ pub struct LabelSummaryRow {
     pub label: String,
     pub total_seconds: i64,
     pub projects: Vec<String>,
+}
+
+// Eisenhower Matrix
+pub fn task_matrix(conn: &Connection, project: Option<&str>) -> Result<MatrixView>
+pub struct MatrixView {
+    pub q1: Vec<TaskRow>,
+    pub q2: Vec<TaskRow>,
+    pub q3: Vec<TaskRow>,
+    pub q4: Vec<TaskRow>,
+    pub unprioritized: Vec<TaskRow>,
+}
+
+pub fn quadrant(urgency: Option<i64>, importance: Option<i64>) -> Option<u8> {
+    // (urgency > 3, importance > 3) → 1-4, None if either is NULL
+    // Maps to 1/1=Q4, 1/5=Q2, 5/1=Q3, 5/5=Q1
+}
+
+// Analysis paralysis helper
+pub fn what_should_i_work_on(conn: &Connection, time_minutes: i64, energy: &str, blocked: bool) -> Result<WorkSuggestion>
+pub struct WorkSuggestion {
+    pub task: Option<TaskRow>,
+    pub reason: String,
+    pub alternatives: Vec<TaskRow>,
+    pub fitting_tasks: Vec<TaskRow>,   // tasks that fit the time block
+    pub oversized_tasks: Vec<TaskRow>, // tasks too big for the time
+}
+
+fn map_quadrant_to_urgency_importance(q: u8) -> (i64, i64) {
+    match q {
+        1 => (5, 5),
+        2 => (1, 5),
+        3 => (5, 1),
+        4 => (1, 1),
+        _ => (3, 3),
+    }
 }
 
 // Helpers
@@ -473,6 +649,9 @@ enum Commands {
         #[arg(short, long)]
         project: Option<String>,
     },
+
+    /// Get a recommendation on what to work on
+    WhatShouldIWorkOn,
 }
 
 #[derive(Subcommand)]
@@ -484,11 +663,33 @@ enum TaskCommands {
         desc: Option<String>,
         #[arg(short = 'e', long)]
         estimate: Option<String>,
+        /// Eisenhower quadrant shorthand
+        #[arg(long)]
+        q1: bool,
+        #[arg(long)]
+        q2: bool,
+        #[arg(long)]
+        q3: bool,
+        #[arg(long)]
+        q4: bool,
+        /// Eisenhower precision scales (1-5)
+        #[arg(long)]
+        urgency: Option<u8>,
+        #[arg(long)]
+        importance: Option<u8>,
     },
     List {
         project: Option<String>,
         #[arg(short, long)]
         status: Option<String>,       // "active" | "completed" | "cancelled"
+        /// Filter by Eisenhower quadrant
+        #[arg(long)]
+        quadrant: Option<u8>,
+    },
+    /// Show Eisenhower Matrix
+    Matrix {
+        #[arg(short, long)]
+        project: Option<String>,
     },
     Complete {
         id: String,
@@ -502,14 +703,34 @@ enum TaskCommands {
         title: Option<String>,
         #[arg(short = 'e', long)]
         estimate: Option<String>,     // pass "0" or "none" to clear
+        #[arg(long)]
+        urgency: Option<u8>,
+        #[arg(long)]
+        importance: Option<u8>,
+        #[arg(long)]
+        q1: bool,
+        #[arg(long)]
+        q2: bool,
+        #[arg(long)]
+        q3: bool,
+        #[arg(long)]
+        q4: bool,
     },
 }
+
+// Top-level command for analysis helper
+enum Commands {
+    /// Get a recommendation on what to work on
+    WhatShouldIWorkOn,
+    // ... existing ...
+}
+
 ```
 
 ## Implementation order
 
 | Step | Files | Time |
-|---|---|---|
+|---|---|---|---|
 | DB: `tasks` table schema + create in `get_connection()` | `db.rs` | 30 min |
 | DB: task CRUD functions (add, list, complete, cancel, edit) | `db.rs` | 1.5 hr |
 | DB: `parse_duration()` helper | `db.rs` or new `parse.rs` | 30 min |
@@ -519,6 +740,10 @@ enum TaskCommands {
 | CLI: `Task` sub-subcommands + dispatch | `main.rs` | 1 hr |
 | CLI: `--task` + `--estimate` flags on `Start` | `main.rs` | 15 min |
 | CLI: `Estimate` subcommand | `main.rs` | 15 min |
+| CLI: Eisenhower Matrix view (`nerd task matrix`) | `main.rs` + `db.rs` | 1 hr |
+| CLI: Analysis paralysis helper (`nerd what-should-i-work-on`) | `main.rs` + `db.rs` | 1.5 hr |
+| CLI: `--q1`/`--q2`/`--q3`/`--q4` + `--urgency`/`--importance` on task add | `main.rs` | 30 min |
+| CLI: urgency/importance prompt fallback | `main.rs` | 15 min |
 | Formatting: task list, estimate output | `db.rs` (inline) | 1 hr |
 | CLI: `Summary` subcommand | `main.rs` | 15 min |
 | CLI: `--label` flag on `Start` and `Task Add`/`Edit` | `main.rs` | 15 min |
@@ -526,5 +751,8 @@ enum TaskCommands {
 | Formatting: task list, estimate output, label breakdown | `db.rs` / `insights.rs` | 1.5 hr |
 | Backend: add `task_id`, `estimated_seconds`, `labels` to sessions + sync | `nerdtime-api` migration + model | 30 min |
 | Core: update `SyncPayload` | `nerdtime-core/src/lib.rs` | 5 min |
-| Manual testing | — | 1.5 hr |
-| **Total** | | **~10 hrs** |
+| MCP: task tools (8 handlers) | `nerdtime-mcp/src/tools/` | 2 hr |
+| MCP: devlog tools (3 handlers) | `nerdtime-mcp/src/tools/` | 1 hr |
+| MCP: what_should_i_work_on tool | `nerdtime-mcp/src/tools/` | 1 hr |
+| Manual testing | — | 2 hr |
+| **Total** | | **~14 hrs** |
