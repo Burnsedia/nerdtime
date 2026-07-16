@@ -645,6 +645,7 @@ impl App {
                                 },
                             };
                             self.advisor_result = db::decide(conn, &input).ok();
+                            self.active_modal = None;
                             self.mode = Mode::Normal;
                         }
                     }
