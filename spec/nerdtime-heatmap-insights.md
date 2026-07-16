@@ -1,5 +1,7 @@
 # nerdtime Heat Map & Insights — Implementation Plan
 
+> **Status**: ✅ Implemented (heatmap + insights commands in `nerd/src/insights.rs`, DB queries in `nerdtime-db/src/stats.rs`)
+> 
 ## Overview
 
 Two new CLI commands that visualize productivity patterns from session data. Uses SQLite `strftime` for time extraction and the existing `colored` crate for terminal rendering.

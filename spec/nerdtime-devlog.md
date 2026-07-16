@@ -1,5 +1,7 @@
 # nerdtime DEVLOG — Implementation Plan
 
+> **Status**: ✅ Implemented (CLI subcommands in `nerd/`, DB ops in `nerdtime-db/`, post-commit hook at `.githooks/`)
+> 
 ## Overview
 
 A structured development logging system that turns every coding session into a queryable, quantified-self record. Replaces the manual `DEVLOG.md` workflow with a deterministic CLI prompt that captures context, decisions, commits, and author type (human/ai/hybrid).

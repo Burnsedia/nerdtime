@@ -1,5 +1,7 @@
 # nerdtime GitHub Sync — Implementation Plan
 
+> **Status**: ✅ Implemented (import, link, close via `nerd/src/github.rs`)
+> 
 ## Overview
 
 Sync local tasks with GitHub Issues. Pull issue metadata (title, labels, status) when creating local tasks. Optionally close issues when completing local tasks. Auto-detect repository from git remote or accept explicit `user/repo#42` syntax.

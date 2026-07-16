@@ -1,5 +1,7 @@
 # Stripe SDK Migration — Implementation Plan
 
+> **Status**: ✅ Implemented (migrated from raw reqwest to async-stripe crate)
+> 
 ## Overview
 
 Replace ~270 lines of raw `reqwest` + manual `hmac/sha2/hex` webhook verification with the typed `async-stripe` SDK (~150 lines). Eliminates 4 crate dependencies. Hardens error handling — no more `.unwrap_or("")` on JSON fields.

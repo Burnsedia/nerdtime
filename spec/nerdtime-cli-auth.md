@@ -1,5 +1,7 @@
 # nerdtime CLI Auth — Implementation Plan
 
+> **Status**: ✅ Implemented (login/signup/logout in `nerd/src/auth.rs`, interactive `rpassword` prompts)
+> 
 ## Overview
 
 Add interactive login/signup/logout to the `nerd` CLI. Currently the CLI accepts a pre-existing JWT via `nerd login <token>` with no way to obtain one. This plan adds prompts that call the backend's `/api/auth/login` and `/api/auth/register` endpoints directly.

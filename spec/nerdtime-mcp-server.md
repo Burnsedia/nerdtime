@@ -1,5 +1,6 @@
 # nerdtime MCP Server — Implementation Plan
 
+> **Status**: ✅ Implemented (08 files, 12 tools, `nerdtime-mcp/`, rmcp v2.2.0, stdio transport)
 > **Pricing**: Free (AGPL). Part of the free CLI tier.
 > **Platforms**: Linux, macOS (no Windows planned).
 

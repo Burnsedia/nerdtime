@@ -1,5 +1,7 @@
 # nerdtime Tasks — Implementation Plan
 
+> **Status**: ✅ Implemented (Eisenhower Matrix, CRUD, labels, estimates, GitHub sync, advisor all live in `nerd/` and `nerdtime-db/`)
+> 
 ## Overview
 
 Add task tracking as a first-class entity. Tasks are todo items within a project with estimates, status tracking, and session association. Every session can optionally belong to a task, enabling estimation accuracy at both the session and task level.

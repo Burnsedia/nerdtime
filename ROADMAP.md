@@ -61,7 +61,7 @@ Product phases for nerdtime, the terminal-native quantified-self system for deve
 
 *Meet developers where they work — in their editor and terminal.*
 
-- [ ] MCP server — 12+ tools for AI agents (tracking, tasks, devlog, advisor)
+- [x] MCP server — 16 files, 12 tools for AI agents (tracking, tasks, devlog, advisor)
 - [ ] Neovim plugin — `:NerdtimeStart`, `:NerdtimeStop`, statusline
 - [ ] VS Code extension — status bar, start/stop from command palette
 - [ ] `nerd tui` — Ratatui terminal UI for browsing sessions
@@ -71,7 +71,7 @@ Product phases for nerdtime, the terminal-native quantified-self system for deve
 *Extend to mobile and deepen AI integration.*
 
 - [ ] Tauri mobile app (iOS + Android) — view sessions, start/stop, SVG heatmaps
-- [ ] Desktop app (macOS + Linux) — SVG heatmaps, full TUI
+- [ ] Desktop app (macOS + Linux) — SVG heatmaps, full TUI (covered by Tauri)
 - [ ] GitHub OAuth — login via GitHub instead of email/password
 - [ ] Team workspaces (maybe — wait for demand)
 
