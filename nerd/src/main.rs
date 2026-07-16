@@ -6,6 +6,7 @@ mod devlog;
 mod github;
 mod insights;
 mod tasks;
+mod tui;
 
 use anyhow::{Context, Result};
 use chrono::Utc;
@@ -117,6 +118,8 @@ enum Commands {
         #[arg(short, long)]
         blocked: Option<String>,
     },
+    /// Launch the terminal UI
+    Tui,
 }
 
 #[derive(Subcommand)]
@@ -203,9 +206,18 @@ enum TaskCommands {
 #[derive(Subcommand)]
 enum DevlogCommands {
     /// Create a new devlog entry (interactive)
-    New,
+    New {
+        /// Auto-generate DEVLOG.md after saving (skip confirmation prompt)
+        #[arg(short, long)]
+        generate: bool,
+    },
     /// Edit an existing entry
-    Edit { id: String },
+    Edit {
+        id: String,
+        /// Auto-generate DEVLOG.md after saving (skip confirmation prompt)
+        #[arg(short, long)]
+        generate: bool,
+    },
     /// Search entries by text or tags
     Query {
         query: String,
@@ -503,8 +515,8 @@ fn main() -> Result<()> {
             Ok(())
         }
         Commands::Devlog { action } => match action {
-            DevlogCommands::New => devlog::handle_new(&conn),
-            DevlogCommands::Edit { id } => devlog::handle_edit(&conn, id),
+            DevlogCommands::New { generate } => devlog::handle_new(&conn, *generate),
+            DevlogCommands::Edit { id, generate } => devlog::handle_edit(&conn, id, *generate),
             DevlogCommands::Query { query, tags } => {
                 devlog::handle_query(&conn, query, tags.as_deref())
             }
@@ -543,6 +555,7 @@ fn main() -> Result<()> {
             energy.as_deref(),
             blocked.as_deref(),
         ),
+        Commands::Tui => tui::run(&conn),
     }
 }
 
