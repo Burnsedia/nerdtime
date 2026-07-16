@@ -42,19 +42,27 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
         .max(1) as f64;
 
     let mut lines = vec![ratatui::text::Line::from("")];
-    for stat in &app.stats {
+    for (i, stat) in app.stats.iter().enumerate() {
+        let is_selected = i == app.selected_index;
+        let prefix = if is_selected { "> " } else { "  " };
+        let row_style = if is_selected {
+            Style::new().fg(Color::Cyan).add_modifier(Modifier::REVERSED)
+        } else {
+            Style::new().fg(Color::Cyan)
+        };
         let fraction = stat.total_seconds as f64 / max_seconds;
-        let bar_width = inner.width.saturating_sub(30) as usize;
+        let bar_width = inner.width.saturating_sub(32) as usize;
         let filled = (bar_width as f64 * fraction) as usize;
         let empty = bar_width.saturating_sub(filled);
         let bar = format!(
-            "{:<15} {}{}  {}",
+            "{}{:<15} {}{}  {}",
+            prefix,
             truncate(&stat.project, 15),
             "█".repeat(filled),
             "░".repeat(empty),
             db::fmt_duration(stat.total_seconds),
         );
-        lines.push(Line::from(Span::styled(bar, Style::new().fg(Color::Cyan))));
+        lines.push(Line::from(Span::styled(bar, row_style)));
     }
 
     let total = db::fmt_duration(app.total_duration);

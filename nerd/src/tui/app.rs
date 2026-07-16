@@ -465,6 +465,22 @@ impl App {
                             self.active_modal = Some(Modal::DevlogDetail(self.selected_index));
                         }
                     }
+                    Panel::Stats => {
+                        if !self.stats.is_empty() && self.selected_index < self.stats.len() {
+                            if self.active_session.is_some() {
+                                let _ = db::stop_session(conn);
+                            }
+                            let _ = db::start_session(
+                                conn,
+                                &self.stats[self.selected_index].project,
+                                None,
+                                None,
+                                None,
+                                None,
+                            );
+                            self.refresh_all(conn);
+                        }
+                    }
                     Panel::Advisor => {
                         self.active_modal = Some(Modal::AdvisorForm);
                         self.mode = Mode::Insert(InsertTarget::AdvisorTime);
