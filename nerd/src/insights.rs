@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-use crate::db::{HeatmapCell, Insights};
 use colored::Colorize;
+use nerdtime_core::{HeatmapCell, Insights};
 
 const DAY_NAMES: [&str; 7] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const BLOCK_NAMES: [&str; 4] = [

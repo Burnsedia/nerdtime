@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-use crate::db;
 use anyhow::{Context, Result};
 use chrono::Utc;
 use colored::Colorize;
 use dialoguer::{Confirm, Editor, Input, Select};
+use nerdtime_db as db;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

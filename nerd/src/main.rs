@@ -2,7 +2,6 @@
 mod advisor;
 mod auth;
 mod config;
-mod db;
 mod devlog;
 mod github;
 mod insights;
@@ -12,6 +11,8 @@ use anyhow::{Context, Result};
 use chrono::Utc;
 use clap::{Parser, Subcommand};
 use colored::Colorize;
+use nerdtime_db as db;
+use nerdtime_db::SyncPayload;
 use std::io::Write;
 
 #[derive(Parser)]
@@ -240,7 +241,6 @@ fn main() -> Result<()> {
             let resolved_task_id = task
                 .as_deref()
                 .and_then(|t| db::resolve_task_id(&conn, t).ok());
-            // handle --issue flag
             let issue_task_id = if let Some(issue_ref) = issue {
                 let cfg = config::load().ok();
                 let detected_repo = github::detect_repo().ok();
@@ -296,31 +296,140 @@ fn main() -> Result<()> {
                 .collect();
             let labels_json = if parsed_labels.is_empty() {
                 if let Some(rid) = task_id_ref {
-                    conn.query_row(
-                        "SELECT labels FROM tasks WHERE id = ?1",
-                        rusqlite::params![rid],
-                        |row| row.get::<_, Option<String>>(0),
-                    )
-                    .unwrap_or(None)
+                    db::get_task_labels(&conn, rid).ok().flatten()
                 } else {
                     None
                 }
             } else {
                 Some(serde_json::to_string(&parsed_labels)?)
             };
-            db::start_session(
+            let session = db::start_session(
                 &conn,
                 project,
                 desc.as_deref(),
                 task_id_ref,
                 estimate_secs,
                 labels_json.as_deref(),
-            )
+            )?;
+            print!("{} Tracking started for {}", "✓".green(), project.bold());
+            if let Some(ref b) = session.branch_name {
+                print!("  branch: {}", b.cyan());
+            }
+            if let Some(tid) = &session.task_id {
+                let short = if tid.len() > 7 { &tid[..7] } else { tid };
+                print!("  task: {}", short.cyan());
+            }
+            println!();
+            Ok(())
         }
-        Commands::Stop => db::stop_session(&conn),
-        Commands::Status => db::show_status(&conn),
-        Commands::Sync => db::sync_sessions(&conn),
-        Commands::Log { project, limit } => db::list_sessions(&conn, project.as_deref(), *limit),
+        Commands::Stop => {
+            let session = db::stop_session(&conn)?;
+            let elapsed = session
+                .ended_at
+                .zip(Some(session.started_at))
+                .map(|(end, start)| end - start)
+                .unwrap_or_default();
+            let duration = db::fmt_duration(elapsed.num_seconds());
+            print!("{} Tracking stopped ({})", "✓".green(), duration.bold());
+
+            if let Some(tid) = &session.task_id {
+                if let Ok(task) = db::list_tasks(&conn, None, None) {
+                    if let Some(t) = task.iter().find(|t| &t.id == tid) {
+                        print!(" — task {}", t.title.cyan());
+                        if let Some(est_total) = t.estimated_seconds {
+                            let actual: i64 = conn
+                                .query_row(
+                                    "SELECT COALESCE(SUM(CAST((julianday(ended_at) - julianday(started_at)) * 86400 AS INTEGER)), 0) FROM sessions WHERE task_id = ?1 AND ended_at IS NOT NULL",
+                                    rusqlite::params![tid],
+                                    |row| row.get(0),
+                                )
+                                .unwrap_or(0);
+
+                            let remaining = (est_total - actual).max(0);
+                            print!(
+                                ", {} estimated remaining",
+                                db::fmt_duration(remaining).bold()
+                            );
+                        }
+                    }
+                }
+            }
+
+            println!();
+            Ok(())
+        }
+        Commands::Status => {
+            match db::show_status(&conn)? {
+                Some(session) => {
+                    let elapsed = Utc::now() - session.started_at;
+                    println!("{} Active session:", "▶".green());
+                    println!("  Project:    {}", session.project_name.bold());
+                    if let Some(ref b) = session.branch_name {
+                        println!("  Branch:     {}", b.cyan());
+                    }
+                    if let Some(ref d) = session.description {
+                        println!("  Description: {}", d);
+                    }
+                    if let Some(ref t) = session.task_id {
+                        if let Ok(title) = conn.query_row(
+                            "SELECT title FROM tasks WHERE id = ?1",
+                            rusqlite::params![t],
+                            |row| row.get::<_, String>(0),
+                        ) {
+                            println!("  Task:       {}", title.cyan());
+                        }
+                    }
+                    println!(
+                        "  Elapsed:    {}h {}m {}s",
+                        elapsed.num_hours(),
+                        elapsed.num_minutes() % 60,
+                        elapsed.num_seconds() % 60
+                    );
+                }
+                None => println!("{} No active session.", "●".yellow()),
+            }
+            Ok(())
+        }
+        Commands::Sync => sync_sessions(&conn),
+        Commands::Log { project, limit } => {
+            let sessions = db::list_sessions(&conn, project.as_deref(), *limit)?;
+            for s in &sessions {
+                let duration_str = if let Some(ended_at) = s.ended_at {
+                    let dur = (ended_at - s.started_at).num_seconds();
+                    db::fmt_duration(dur).green().to_string()
+                } else {
+                    "active".yellow().to_string()
+                };
+                let synced = if s.is_synced {
+                    "✓".green().to_string()
+                } else {
+                    "○".yellow().to_string()
+                };
+                let task_tag = s
+                    .task_id
+                    .as_ref()
+                    .and_then(|tid| {
+                        conn.query_row(
+                            "SELECT title FROM tasks WHERE id = ?1",
+                            rusqlite::params![tid],
+                            |row| row.get::<_, String>(0),
+                        )
+                        .ok()
+                        .map(|t| format!(" [{}]", t.cyan()))
+                    })
+                    .unwrap_or_default();
+                println!(
+                    "{} [{}] {} — {} ({}){}",
+                    synced,
+                    s.started_at.format("%Y-%m-%d %H:%M"),
+                    s.project_name.bold(),
+                    duration_str,
+                    s.description.as_deref().unwrap_or(""),
+                    task_tag,
+                );
+            }
+            Ok(())
+        }
         Commands::Login { url, token } => match token {
             Some(t) => login_headless(url.as_deref(), t),
             None => {
@@ -501,8 +610,33 @@ fn handle_task(conn: &rusqlite::Connection, cmd: &TaskCommands) -> Result<()> {
             print!("{}", tasks::render_matrix(&tasks));
             Ok(())
         }
-        TaskCommands::Complete { id, close_issue } => db::complete_task(conn, id, *close_issue),
-        TaskCommands::Cancel { id } => db::cancel_task(conn, id),
+        TaskCommands::Complete { id, close_issue } => {
+            let resolved_id = db::resolve_task_id(conn, id)?;
+
+            if *close_issue {
+                if let Ok((Some(repo), Some(number))) = db::get_task_github_info(conn, &resolved_id)
+                {
+                    if let Err(e) = github::close_issue(&repo, number) {
+                        eprintln!(
+                            "{} Warning: failed to close GitHub issue: {}",
+                            "!".yellow(),
+                            e
+                        );
+                    } else {
+                        println!("{} Closed GitHub issue {}/#{}.", "✓".green(), repo, number);
+                    }
+                }
+            }
+
+            db::complete_task(conn, &resolved_id)?;
+            println!("{} Task completed.", "✓".green());
+            Ok(())
+        }
+        TaskCommands::Cancel { id } => {
+            db::cancel_task(conn, id)?;
+            println!("{} Task cancelled.", "●".yellow());
+            Ok(())
+        }
         TaskCommands::Edit {
             id,
             title,
@@ -522,6 +656,7 @@ fn handle_task(conn: &rusqlite::Connection, cmd: &TaskCommands) -> Result<()> {
                     .as_deref()
                     .map(|l| if l.is_empty() { None } else { Some(l) });
             db::edit_task(conn, id, title.as_deref(), est, Some(u), Some(i), labels)?;
+            println!("{} Task updated.", "✓".green());
             Ok(())
         }
         TaskCommands::ImportGithub {
@@ -534,7 +669,10 @@ fn handle_task(conn: &rusqlite::Connection, cmd: &TaskCommands) -> Result<()> {
             let cfg = config::load().ok();
             let detected_repo = github::detect_repo().ok();
             let config_repo = cfg.as_ref().and_then(|c| c.default_github_repo.as_deref());
-            let gh_repo = repo.as_deref().or(detected_repo.as_deref()).or(config_repo)
+            let gh_repo = repo
+                .as_deref()
+                .or(detected_repo.as_deref())
+                .or(config_repo)
                 .context("Could not determine repository. Use --repo, set default_github_repo, or run from a git repo with a GitHub remote.")?;
             let token = cfg.as_ref().and_then(|c| c.github_token.as_deref());
 
@@ -557,9 +695,9 @@ fn handle_task(conn: &rusqlite::Connection, cmd: &TaskCommands) -> Result<()> {
                     issues.len(),
                     gh_repo.bold()
                 );
-                for issue in &issues {
-                    let num = issue["number"].as_i64().unwrap_or(0);
-                    let title = issue["title"].as_str().unwrap_or("untitled");
+                for issue_data in &issues {
+                    let num = issue_data["number"].as_i64().unwrap_or(0);
+                    let title = issue_data["title"].as_str().unwrap_or("untitled");
                     println!("    #{} {}", num, title.cyan());
                 }
                 return Ok(());
@@ -636,9 +774,9 @@ fn print_task_project_estimate(tasks: &[db::TaskRow], project: &str) {
     for t in tasks {
         let est_str = t
             .estimated_seconds
-            .map(insights::fmt_duration)
+            .map(db::fmt_duration)
             .unwrap_or_else(|| "—".to_string());
-        let act_str = insights::fmt_duration(t.actual_seconds);
+        let act_str = db::fmt_duration(t.actual_seconds);
         if let Some(est) = t.estimated_seconds {
             total_est += est;
             total_act += t.actual_seconds;
@@ -648,7 +786,7 @@ fn print_task_project_estimate(tasks: &[db::TaskRow], project: &str) {
                 format!(
                     "{} over by {}",
                     "✗".red(),
-                    insights::fmt_duration(t.actual_seconds - est)
+                    db::fmt_duration(t.actual_seconds - est)
                 )
             };
             println!(
@@ -667,19 +805,16 @@ fn print_task_project_estimate(tasks: &[db::TaskRow], project: &str) {
     println!("  {}", "Project totals:".bold());
     println!(
         "  {} tracked across {} tasks",
-        insights::fmt_duration(total_act).bold(),
+        db::fmt_duration(total_act).bold(),
         tasks.len()
     );
     if total_est > 0 {
-        println!(
-            "  {} total estimate",
-            insights::fmt_duration(total_est).bold()
-        );
+        println!("  {} total estimate", db::fmt_duration(total_est).bold());
         let remaining = total_est - total_act;
         if remaining > 0 {
             println!(
                 "  {} remaining (in active tasks)",
-                insights::fmt_duration(remaining).bold()
+                db::fmt_duration(remaining).bold()
             );
         }
     }
@@ -721,7 +856,7 @@ fn handle_summary(
         println!(
             "  {:<16} {:<10} {}",
             lbl.cyan(),
-            insights::fmt_duration(*secs).bold(),
+            db::fmt_duration(*secs).bold(),
             projs.join(", "),
         );
         total_seconds += secs;
@@ -730,7 +865,7 @@ fn handle_summary(
     println!(
         "  {:<16} {:<10} {} label(s)",
         "Total".bold(),
-        insights::fmt_duration(total_seconds).bold(),
+        db::fmt_duration(total_seconds).bold(),
         rows.len(),
     );
     println!();
@@ -746,12 +881,12 @@ fn handle_advisor(
     match (time, energy) {
         (Some(t), Some(e)) => {
             let available_seconds = db::parse_duration(t)?.unwrap_or(3600);
-            let input = advisor::AdvisorInput {
+            let input = db::AdvisorInput {
                 available_seconds,
                 energy: e.to_string(),
                 blocked: blocked.map(|s| s.to_string()),
             };
-            let result = advisor::decide(conn, &input)?;
+            let result = db::decide(conn, &input)?;
             println!("\n  {}: {}", "Suggestion".bold(), result.task_title.bold());
             println!("  {}", result.reason);
             Ok(())
@@ -798,5 +933,64 @@ fn show_config() -> Result<()> {
         "Default repo: {}",
         cfg.default_github_repo.as_deref().unwrap_or("not set")
     );
+    Ok(())
+}
+
+fn sync_sessions(conn: &rusqlite::Connection) -> Result<()> {
+    let sessions = db::get_unsynced_sessions(conn)?;
+
+    if sessions.is_empty() {
+        println!("{} Nothing to sync.", "●".yellow());
+        return Ok(());
+    }
+
+    println!("{} Syncing {} session(s)...", "↻".cyan(), sessions.len());
+
+    let payload: Vec<SyncPayload> = sessions
+        .iter()
+        .map(|s| SyncPayload {
+            id: s.id,
+            project_name: s.project_name.clone(),
+            branch_name: s.branch_name.clone(),
+            commit_hash: s.commit_hash.clone(),
+            description: s.description.clone(),
+            started_at: s.started_at,
+            ended_at: s.ended_at,
+            task_id: s.task_id.clone(),
+            estimated_seconds: s.estimated_seconds,
+            labels: s.labels.clone(),
+        })
+        .collect();
+
+    let cfg = config::load()?;
+    let sync_url = format!("{}/sync", cfg.api_url.trim_end_matches('/'));
+
+    let client = reqwest::blocking::Client::new();
+    let mut request = client.post(&sync_url).json(&payload);
+
+    if let Some(ref token) = cfg.token {
+        request = request.bearer_auth(token);
+    }
+
+    match request.send() {
+        Ok(resp) if resp.status().is_success() => {
+            db::mark_synced(conn)?;
+            println!("{} Sync complete!", "✓".green());
+        }
+        Ok(resp) if resp.status().as_u16() == 401 || resp.status().as_u16() == 403 => {
+            anyhow::bail!(
+                "Sync rejected ({}). An active subscription is required. Visit {} to upgrade.",
+                resp.status(),
+                "https://nerdtime.dev/settings"
+            );
+        }
+        Ok(resp) => {
+            anyhow::bail!("Sync failed with status: {}", resp.status());
+        }
+        Err(e) => {
+            anyhow::bail!("Sync request failed: {}", e);
+        }
+    }
+
     Ok(())
 }

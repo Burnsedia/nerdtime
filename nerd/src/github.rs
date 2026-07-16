@@ -2,6 +2,8 @@
 
 use anyhow::{Context, Result};
 use colored::Colorize;
+use nerdtime_db as db;
+
 use serde_json::Value;
 
 pub fn detect_repo() -> Result<String> {
@@ -212,7 +214,7 @@ pub fn import_issue_as_task(
 ) -> Result<Option<String>> {
     let number = issue["number"].as_i64().context("Issue missing number")?;
     // dedup
-    if let Some(existing) = crate::db::find_task_by_github_issue(conn, repo, number)? {
+    if let Some(existing) = db::find_task_by_github_issue(conn, repo, number)? {
         return Ok(Some(existing));
     }
     let title = issue["title"]
@@ -245,13 +247,13 @@ pub fn import_issue_as_task(
             let rest = &lower[start + prefix.len()..];
             if let Some(end) = rest.find(']') {
                 let val = rest[..end].trim();
-                return crate::db::parse_duration(val).ok().flatten();
+                return db::parse_duration(val).ok().flatten();
             }
         }
         None
     });
 
-    let tid = crate::db::add_task(
+    let tid = db::add_task(
         conn,
         &repo_full,
         &title,
@@ -269,7 +271,7 @@ pub fn import_issue_as_task(
         number,
         title,
         if let Some(e) = est {
-            format!("({})", crate::insights::fmt_duration(e))
+            format!("({})", db::fmt_duration(e))
         } else {
             String::new()
         }

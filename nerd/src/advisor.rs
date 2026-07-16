@@ -1,15 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-use crate::db;
-use crate::insights;
 use colored::Colorize;
 use dialoguer::{Confirm, Input, Select};
-use rusqlite::Connection;
-
-pub struct AdvisorInput {
-    pub available_seconds: i64,
-    pub energy: String,
-    pub blocked: Option<String>,
-}
+use nerdtime_db::{self as db, Connection};
 
 pub fn run_interactive(conn: &Connection) -> anyhow::Result<()> {
     println!(
@@ -41,13 +33,13 @@ pub fn run_interactive(conn: &Connection) -> anyhow::Result<()> {
         Some(blocked)
     };
 
-    let input = AdvisorInput {
+    let input = db::AdvisorInput {
         available_seconds,
         energy,
         blocked,
     };
 
-    let result = decide(conn, &input)?;
+    let result = db::decide(conn, &input)?;
 
     println!("\n  {}", "Suggestion:".bold());
     println!("    {} — {}", result.task_title.bold(), result.reason);
@@ -78,109 +70,4 @@ pub fn run_interactive(conn: &Connection) -> anyhow::Result<()> {
     }
 
     Ok(())
-}
-
-pub struct Advice {
-    pub task_id: Option<String>,
-    pub task_title: String,
-    pub project: String,
-    pub reason: String,
-}
-
-pub fn decide(conn: &Connection, input: &AdvisorInput) -> anyhow::Result<Advice> {
-    let tasks = db::unsynced_active_tasks(conn, input.available_seconds, &input.energy)?;
-
-    if tasks.is_empty() {
-        return Ok(Advice {
-            task_id: None,
-            task_title: "Take a break".to_string(),
-            project: String::new(),
-            reason: "No tasks fit your available time and energy level.".to_string(),
-        });
-    }
-
-    for task in &tasks {
-        if task.quadrant == 1 {
-            let fits = task
-                .estimated_seconds
-                .map(|e| e <= (input.available_seconds as f64 * 1.5) as i64)
-                .unwrap_or(true);
-            if fits {
-                let mut reason = format!(
-                    "Top priority Q1 task. Fits your {} block.",
-                    insights::fmt_duration(input.available_seconds)
-                );
-                if let Some(ref b) = input.blocked {
-                    if task.title.to_lowercase().contains(&b.to_lowercase()) {
-                        continue;
-                    }
-                    reason.push_str(&format!(
-                        " You mentioned you're blocked on \"{}\" — this task doesn't seem related.",
-                        b
-                    ));
-                }
-                if input.energy == "low" && task.estimated_seconds.is_some_and(|e| e > 1800) {
-                    // Skip big Q1 tasks on low energy, check next
-                    continue;
-                }
-                return Ok(Advice {
-                    task_id: Some(task.id.clone()),
-                    task_title: task.title.clone(),
-                    project: task.project_name.clone(),
-                    reason,
-                });
-            }
-        }
-    }
-
-    for task in &tasks {
-        if task.quadrant == 2 {
-            let fits = task
-                .estimated_seconds
-                .map(|e| e <= (input.available_seconds as f64 * 1.5) as i64)
-                .unwrap_or(true);
-            if fits {
-                return Ok(Advice {
-                    task_id: Some(task.id.clone()),
-                    task_title: task.title.clone(),
-                    project: task.project_name.clone(),
-                    reason: "Schedule it: important but not urgent. Good use of time.".to_string(),
-                });
-            }
-        }
-    }
-
-    for task in &tasks {
-        if task.quadrant == 3 {
-            let fits = task
-                .estimated_seconds
-                .map(|e| e <= (input.available_seconds as f64 * 1.5) as i64)
-                .unwrap_or(true);
-            if fits {
-                return Ok(Advice {
-                    task_id: Some(task.id.clone()),
-                    task_title: task.title.clone(),
-                    project: task.project_name.clone(),
-                    reason: "Quick task you can delegate later, but do it now if it's fast."
-                        .to_string(),
-                });
-            }
-        }
-    }
-
-    if let Some(task) = tasks.first() {
-        return Ok(Advice {
-            task_id: Some(task.id.clone()),
-            task_title: task.title.clone(),
-            project: task.project_name.clone(),
-            reason: "Low-priority task. Consider if this needs doing at all.".to_string(),
-        });
-    }
-
-    Ok(Advice {
-        task_id: None,
-        task_title: "Take a break".to_string(),
-        project: String::new(),
-        reason: "No tasks match your current context.".to_string(),
-    })
 }

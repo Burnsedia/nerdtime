@@ -6,16 +6,17 @@ license = "AGPL-3.0-only"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
-rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite = "0.32"
+dirs = "6"
+nerdtime-db = { path = "../nerdtime-db" }
+nerdtime-core = { path = "../nerdtime-core" }
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1", features = ["v4"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-dirs = "6"
 anyhow = "1"
 colored = "3"
 dialoguer = { version = "0.11", features = ["editor"] }
 reqwest = { version = "0.12", features = ["json", "blocking"] }
 toml = "0.8"
 rpassword = "7"
-nerdtime-core = { path = "../nerdtime-core" }

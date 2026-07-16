@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-use crate::db;
-use crate::insights;
 use colored::Colorize;
+use nerdtime_db as db;
 
 pub fn render_matrix(tasks: &[db::TaskRow]) -> String {
     if tasks.is_empty() {
@@ -91,10 +90,10 @@ fn render_quadrant(
         };
         let est_str = t
             .estimated_seconds
-            .map(insights::fmt_duration)
+            .map(db::fmt_duration)
             .unwrap_or_default();
         let act_str = if t.actual_seconds > 0 {
-            insights::fmt_duration(t.actual_seconds)
+            db::fmt_duration(t.actual_seconds)
         } else {
             String::new()
         };
@@ -152,16 +151,16 @@ pub fn render_task_list(tasks: &[db::TaskRow]) -> String {
     for t in tasks {
         let est_str = t
             .estimated_seconds
-            .map(insights::fmt_duration)
+            .map(db::fmt_duration)
             .unwrap_or_else(|| "—".to_string());
         let act_str = if t.actual_seconds > 0 {
-            insights::fmt_duration(t.actual_seconds)
+            db::fmt_duration(t.actual_seconds)
         } else {
             "—".to_string()
         };
         let rem = t.estimated_seconds.map(|e| {
             let r = (e - t.actual_seconds).max(0);
-            insights::fmt_duration(r)
+            db::fmt_duration(r)
         });
         let rem_str = rem.as_deref().unwrap_or("—");
         let gh_str = t
@@ -204,8 +203,8 @@ pub fn render_task_list(tasks: &[db::TaskRow]) -> String {
     out.push_str(&format!(
         "  {} tasks | {} tracked | {} estimated\n",
         tasks.len(),
-        insights::fmt_duration(total_actual).bold(),
-        insights::fmt_duration(total_est).bold(),
+        db::fmt_duration(total_actual).bold(),
+        db::fmt_duration(total_est).bold(),
     ));
 
     out
@@ -224,7 +223,7 @@ pub fn render_estimate(
 
     let est_str = task
         .estimated_seconds
-        .map(insights::fmt_duration)
+        .map(db::fmt_duration)
         .unwrap_or_else(|| "none".to_string());
     out.push_str(&format!("  Estimate:   {}\n", est_str.bold()));
 
@@ -238,7 +237,7 @@ pub fn render_estimate(
     });
     out.push_str(&format!(
         "  Actual:     {} ({})\n\n",
-        insights::fmt_duration(total_actual).bold(),
+        db::fmt_duration(total_actual).bold(),
         pct.as_deref().unwrap_or("—"),
     ));
 
@@ -247,12 +246,12 @@ pub fn render_estimate(
         for (start, _end, dur, est) in sessions {
             let date = &start[..10];
             let est_tag = est
-                .map(|e| format!(" (-{})", insights::fmt_duration(e)))
+                .map(|e| format!(" (-{})", db::fmt_duration(e)))
                 .unwrap_or_default();
             out.push_str(&format!(
                 "    {}  {}{}\n",
                 date,
-                insights::fmt_duration(*dur),
+                db::fmt_duration(*dur),
                 est_tag.dimmed(),
             ));
         }
@@ -261,10 +260,7 @@ pub fn render_estimate(
 
     let remaining = task.estimated_seconds.map(|e| (e - total_actual).max(0));
     if let Some(r) = remaining {
-        out.push_str(&format!(
-            "  Remaining:  {}\n",
-            insights::fmt_duration(r).bold()
-        ));
+        out.push_str(&format!("  Remaining:  {}\n", db::fmt_duration(r).bold()));
     }
 
     out
