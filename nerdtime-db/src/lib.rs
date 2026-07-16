@@ -8,7 +8,7 @@ pub mod stats;
 pub mod tasks;
 pub mod util;
 
-pub use connection::get_connection;
+pub use connection::{get_connection, init_schema};
 pub use git::{git_branch, git_commit_hash};
 pub use util::{fmt_duration, parse_duration};
 

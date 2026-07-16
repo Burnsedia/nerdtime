@@ -15,9 +15,7 @@ pub fn db_path() -> Result<PathBuf> {
     Ok(data_dir()?.join("data.db"))
 }
 
-pub fn get_connection() -> Result<Connection> {
-    let db_path = db_path()?;
-    let conn = Connection::open(&db_path)?;
+pub fn init_schema(conn: &Connection) -> Result<()> {
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS sessions (
             id TEXT PRIMARY KEY NOT NULL,
@@ -83,5 +81,12 @@ pub fn get_connection() -> Result<Connection> {
         [],
     );
 
+    Ok(())
+}
+
+pub fn get_connection() -> Result<Connection> {
+    let db_path = db_path()?;
+    let conn = Connection::open(&db_path)?;
+    init_schema(&conn)?;
     Ok(conn)
 }
