@@ -440,6 +440,9 @@ impl App {
                     }
                     Panel::Tasks => {
                         if !self.tasks.is_empty() && self.selected_index < self.tasks.len() {
+                            if self.active_session.is_some() {
+                                let _ = db::stop_session(conn);
+                            }
                             let task = &self.tasks[self.selected_index];
                             let _ = db::start_session(
                                 conn,
