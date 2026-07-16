@@ -353,9 +353,17 @@ impl App {
                 self.selected_index = self.selected_index.saturating_sub(1);
             }
             KeyCode::Char('h') => {
-                if self.active_panel == Panel::Matrix {
-                    self.active_panel = Panel::Tasks;
-                    self.refresh_panel(conn);
+                match self.active_panel {
+                    Panel::Matrix => {
+                        self.active_panel = Panel::Tasks;
+                        self.refresh_panel(conn);
+                    }
+                    Panel::Stats => {
+                        let data = db::heatmap_data(conn, self.days, None).ok().unwrap_or_default();
+                        self.heatmap_data = data;
+                        self.active_modal = Some(Modal::Heatmap);
+                    }
+                    _ => {}
                 }
             }
             KeyCode::Char('l') => {
@@ -382,7 +390,25 @@ impl App {
                 }
             }
             KeyCode::Char('s') => {
-                self.sync_sessions(conn);
+                if self.active_panel == Panel::Advisor {
+                    if let Some(ref advice) = self.advisor_result {
+                        if let Some(ref task_id) = advice.task_id {
+                            if let Some(task) = self.tasks.iter().find(|t| &t.id == task_id) {
+                                let _ = db::start_session(
+                                    conn,
+                                    &task.project_name,
+                                    None,
+                                    Some(&task.id),
+                                    task.estimated_seconds,
+                                    task.labels.as_deref(),
+                                );
+                                self.refresh_all(conn);
+                            }
+                        }
+                    }
+                } else {
+                    self.sync_sessions(conn);
+                }
             }
             KeyCode::Char('r') => {
                 self.refresh_all(conn);
@@ -476,11 +502,6 @@ impl App {
                 self.insights_data = data;
                 self.active_modal = Some(Modal::Insights);
             }
-            KeyCode::Char('h') if self.active_panel == Panel::Stats => {
-                let data = db::heatmap_data(conn, self.days, None).ok().unwrap_or_default();
-                self.heatmap_data = data;
-                self.active_modal = Some(Modal::Heatmap);
-            }
             KeyCode::Char('e') if self.active_panel == Panel::Devlog => {
                 if !self.devlog_entries.is_empty() && self.selected_index < self.devlog_entries.len() {
                     let entry = &self.devlog_entries[self.selected_index];
@@ -488,23 +509,6 @@ impl App {
                         .arg("-c")
                         .arg(format!("$EDITOR {}", entry.id))
                         .spawn();
-                }
-            }
-            KeyCode::Char('s') if self.active_panel == Panel::Advisor => {
-                if let Some(ref advice) = self.advisor_result {
-                    if let Some(ref task_id) = advice.task_id {
-                        if let Some(task) = self.tasks.iter().find(|t| &t.id == task_id) {
-                            let _ = db::start_session(
-                                conn,
-                                &task.project_name,
-                                None,
-                                Some(&task.id),
-                                task.estimated_seconds,
-                                task.labels.as_deref(),
-                            );
-                            self.refresh_all(conn);
-                        }
-                    }
                 }
             }
             _ => {}
