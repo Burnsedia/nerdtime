@@ -139,7 +139,7 @@ fn render_help_overlay(f: &mut Frame, area: Rect) {
         "  Devlog: e=Edit",
         "  Advisor: s=Start suggested task",
         "",
-        "COMMANDS: :q, :w (sync), :wq, :e (refresh), :dashboard, :stats, :tasks, :matrix, :devlog, :advisor",
+        "COMMANDS: :q, :w (sync), :wq, :e (refresh), :days N, :dashboard, :stats, :tasks, :matrix, :devlog, :advisor",
         "",
         "Press Esc to close",
     ];

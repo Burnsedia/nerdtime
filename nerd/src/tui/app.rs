@@ -131,6 +131,7 @@ pub struct App {
     pub total_sessions_count: usize,
     pub total_duration: i64,
     pub project_count: usize,
+    pub days: i64,
 }
 
 impl App {
@@ -204,6 +205,7 @@ impl App {
             total_sessions_count,
             total_duration,
             project_count,
+            days: 30,
         }
     }
 
@@ -470,12 +472,12 @@ impl App {
                 self.refresh_panel(conn);
             }
             KeyCode::Char('i') if self.active_panel == Panel::Stats => {
-                let data = db::insights_data(conn, 30, None).ok();
+                let data = db::insights_data(conn, self.days, None).ok();
                 self.insights_data = data;
                 self.active_modal = Some(Modal::Insights);
             }
             KeyCode::Char('h') if self.active_panel == Panel::Stats => {
-                let data = db::heatmap_data(conn, 30, None).ok().unwrap_or_default();
+                let data = db::heatmap_data(conn, self.days, None).ok().unwrap_or_default();
                 self.heatmap_data = data;
                 self.active_modal = Some(Modal::Heatmap);
             }
@@ -776,6 +778,12 @@ impl App {
                         self.selected_index = 0;
                         self.refresh_panel(conn);
                     }
+                    d if d.starts_with("days ") => {
+                        if let Ok(n) = d[5..].trim().parse::<i64>() {
+                            self.days = n;
+                            self.refresh_all(conn);
+                        }
+                    }
                     _ => {
                         self.toast = Some(Toast {
                             message: format!("Unknown command: {}", cmd),
@@ -829,6 +837,8 @@ impl App {
         self.total_sessions_count = self.sessions.len();
         self.total_duration = self.stats.iter().map(|s| s.total_seconds).sum();
         self.project_count = self.stats.len();
+        self.heatmap_data = db::heatmap_data(conn, self.days, None).ok().unwrap_or_default();
+        self.insights_data = db::insights_data(conn, self.days, None).ok();
         self.last_db_refresh = std::time::Instant::now();
 
         if self.active_session.is_some() && self.session_start_instant.is_none() {
@@ -844,6 +854,8 @@ impl App {
             Panel::Dashboard => {
                 self.active_session = db::show_status(conn).ok().flatten();
                 self.sessions = db::list_sessions(conn, None, 50).unwrap_or_default();
+                self.heatmap_data = db::heatmap_data(conn, self.days, None).ok().unwrap_or_default();
+                self.insights_data = db::insights_data(conn, self.days, None).ok();
             }
             Panel::Stats => {
                 self.stats = db::stats_by_project(conn).unwrap_or_default();
