@@ -25,7 +25,7 @@ pub use advisor::decide;
 pub use devlog::{
     cache_commit, get_cached_commit_map, get_cached_commits, get_devlog_entry,
     get_last_devlog_date, get_used_commit_shas, insert_devlog_entry, list_devlog_entries,
-    search_devlog_entries, update_devlog_entry,
+    render_devlog_md, search_devlog_entries, update_devlog_entry,
 };
 pub use sessions::{
     get_unsynced_sessions, list_sessions, mark_synced, show_status, start_session,

@@ -78,7 +78,7 @@ pub fn handle_cache_commit(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
-pub fn handle_new(conn: &Connection) -> Result<()> {
+pub fn handle_new(conn: &Connection, auto_generate: bool) -> Result<()> {
     let title: String = Input::new().with_prompt("Title").interact_text()?;
 
     let role_idx = Select::new()
@@ -222,13 +222,16 @@ pub fn handle_new(conn: &Connection) -> Result<()> {
     db::insert_devlog_entry(conn, &entry)?;
     println!("{} Entry saved.", "✓".green());
 
-    let regen = Confirm::new()
-        .with_prompt("Regenerate DEVLOG.md?")
-        .default(true)
-        .interact()?;
-
-    if regen {
+    if auto_generate {
         handle_generate(conn)?;
+    } else {
+        let regen = Confirm::new()
+            .with_prompt("Regenerate DEVLOG.md?")
+            .default(true)
+            .interact()?;
+        if regen {
+            handle_generate(conn)?;
+        }
     }
 
     Ok(())
@@ -335,7 +338,7 @@ struct DevlogToml {
     decisions: String,
 }
 
-pub fn handle_edit(conn: &Connection, id: &str) -> Result<()> {
+pub fn handle_edit(conn: &Connection, id: &str, auto_generate: bool) -> Result<()> {
     let entry = db::get_devlog_entry(conn, id)?;
 
     let toml_content = DevlogToml {
@@ -388,20 +391,23 @@ pub fn handle_edit(conn: &Connection, id: &str) -> Result<()> {
     db::update_devlog_entry(conn, &updated_entry)?;
     println!("{} Entry updated.", "✓".green());
 
-    let regen = Confirm::new()
-        .with_prompt("Regenerate DEVLOG.md?")
-        .default(true)
-        .interact()?;
-
-    if regen {
+    if auto_generate {
         handle_generate(conn)?;
+    } else {
+        let regen = Confirm::new()
+            .with_prompt("Regenerate DEVLOG.md?")
+            .default(true)
+            .interact()?;
+        if regen {
+            handle_generate(conn)?;
+        }
     }
 
     Ok(())
 }
 
 pub fn handle_generate(conn: &Connection) -> Result<()> {
-    let markdown = generate_devlog_md(conn)?;
+    let markdown = db::render_devlog_md(conn)?;
     std::fs::write("DEVLOG.md", &markdown).context("failed to write DEVLOG.md")?;
     println!(
         "{} DEVLOG.md regenerated ({} lines)",
@@ -409,82 +415,6 @@ pub fn handle_generate(conn: &Connection) -> Result<()> {
         markdown.lines().count()
     );
     Ok(())
-}
-
-fn generate_devlog_md(conn: &Connection) -> Result<String> {
-    let entries = db::list_devlog_entries(conn, 1000)?;
-    if entries.is_empty() {
-        return Ok(String::new());
-    }
-
-    let commit_cache = db::get_cached_commit_map(conn).unwrap_or_default();
-
-    let mut out = String::from("# nerdtime.dev — Development Log\n\n");
-
-    for entry in entries {
-        out.push_str(&format!("## {}: {}\n\n", entry.date, entry.title));
-        out.push_str(&format!("**role:** {}\n", entry.role));
-
-        if !entry.commits.is_empty() {
-            let commit_strs: Vec<String> = entry
-                .commits
-                .iter()
-                .map(|sha| {
-                    if let Some((files, added, removed)) = commit_cache.get(sha) {
-                        format!(
-                            "[`{}`](https://github.com/Burnsedia/nerdtime/commit/{}) (+{} / -{} lines, {} file{})",
-                            &sha[..7],
-                            sha,
-                            added,
-                            removed,
-                            files,
-                            if *files == 1 { "" } else { "s" },
-                        )
-                    } else {
-                        format!(
-                            "[`{}`](https://github.com/Burnsedia/nerdtime/commit/{})",
-                            &sha[..7],
-                            sha,
-                        )
-                    }
-                })
-                .collect();
-            out.push_str(&format!("**commits:** {}\n", commit_strs.join(", ")));
-        }
-
-        if !entry.tags.is_empty() {
-            let tag_strs: Vec<String> = entry.tags.iter().map(|t| format!("`{}`", t)).collect();
-            out.push_str(&format!("**tags:** {}\n", tag_strs.join(", ")));
-        }
-
-        out.push('\n');
-
-        if !entry.context.is_empty() {
-            out.push_str("### Context\n\n");
-            out.push_str(&entry.context);
-            out.push_str("\n\n");
-        }
-
-        if !entry.changes.is_empty() {
-            out.push_str("### Changes\n\n");
-            for change in &entry.changes {
-                out.push_str(&format!("- {}\n", change));
-            }
-            out.push('\n');
-        }
-
-        if !entry.decisions.is_empty() {
-            out.push_str("### Decisions\n\n");
-            for decision in &entry.decisions {
-                out.push_str(&format!("- {}\n", decision));
-            }
-            out.push('\n');
-        }
-
-        out.push_str("---\n\n");
-    }
-
-    Ok(out)
 }
 
 fn truncate(s: &str, max: usize) -> String {

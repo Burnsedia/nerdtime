@@ -178,6 +178,78 @@ pub fn get_last_devlog_date(conn: &Connection) -> Result<Option<String>> {
     Ok(date)
 }
 
+pub fn render_devlog_md(conn: &Connection) -> Result<String> {
+    let entries = list_devlog_entries(conn, 1000)?;
+    let commit_cache = get_cached_commit_map(conn).unwrap_or_default();
+
+    let mut out = String::from("# nerdtime.dev — Development Log\n\n");
+
+    for entry in entries {
+        out.push_str(&format!("## {}: {}\n\n", entry.date, entry.title));
+        out.push_str(&format!("**role:** {}\n", entry.role));
+
+        if !entry.commits.is_empty() {
+            let commit_strs: Vec<String> = entry
+                .commits
+                .iter()
+                .map(|sha| {
+                    if let Some((files, added, removed)) = commit_cache.get(sha) {
+                        format!(
+                            "[`{}`](https://github.com/Burnsedia/nerdtime/commit/{}) (+{} / -{} lines, {} file{})",
+                            &sha[..7.min(sha.len())],
+                            sha,
+                            added,
+                            removed,
+                            files,
+                            if *files == 1 { "" } else { "s" },
+                        )
+                    } else {
+                        format!(
+                            "[`{}`](https://github.com/Burnsedia/nerdtime/commit/{})",
+                            &sha[..7.min(sha.len())],
+                            sha,
+                        )
+                    }
+                })
+                .collect();
+            out.push_str(&format!("**commits:** {}\n", commit_strs.join(", ")));
+        }
+
+        if !entry.tags.is_empty() {
+            let tag_strs: Vec<String> = entry.tags.iter().map(|t| format!("`{}`", t)).collect();
+            out.push_str(&format!("**tags:** {}\n", tag_strs.join(", ")));
+        }
+
+        out.push('\n');
+
+        if !entry.context.is_empty() {
+            out.push_str("### Context\n\n");
+            out.push_str(&entry.context);
+            out.push_str("\n\n");
+        }
+
+        if !entry.changes.is_empty() {
+            out.push_str("### Changes\n\n");
+            for change in &entry.changes {
+                out.push_str(&format!("- {}\n", change));
+            }
+            out.push('\n');
+        }
+
+        if !entry.decisions.is_empty() {
+            out.push_str("### Decisions\n\n");
+            for decision in &entry.decisions {
+                out.push_str(&format!("- {}\n", decision));
+            }
+            out.push('\n');
+        }
+
+        out.push_str("---\n\n");
+    }
+
+    Ok(out)
+}
+
 pub fn get_cached_commit_map(
     conn: &Connection,
 ) -> Result<std::collections::HashMap<String, (i64, i64, i64)>> {

@@ -27,6 +27,11 @@ pub struct DevlogQueryInput {
     pub limit: Option<i32>,
 }
 
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct DevlogGenerateInput {
+    pub output_path: Option<String>,
+}
+
 pub fn handle_devlog_log(
     state: &AppState,
     text: String,
@@ -83,4 +88,21 @@ pub fn handle_devlog_query(
         return ok("No devlog entries found".to_string());
     }
     ok(lines.join("\n"))
+}
+
+pub fn handle_devlog_generate(
+    state: &AppState,
+    output_path: Option<String>,
+) -> Result<CallToolResult, ErrorData> {
+    let conn = state.conn.lock().map_err(wrap_err)?;
+
+    let markdown = nerdtime_db::render_devlog_md(&conn).map_err(wrap_err)?;
+    let path = output_path.unwrap_or_else(|| "./DEVLOG.md".to_string());
+
+    let line_count = markdown.lines().count();
+    std::fs::write(&path, &markdown).map_err(|e| {
+        ErrorData::internal_error(format!("failed to write {path}: {e}"), None)
+    })?;
+
+    ok(format!("DEVLOG.md written to {path} ({line_count} lines)"))
 }

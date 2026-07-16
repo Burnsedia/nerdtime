@@ -134,6 +134,14 @@ impl AppState {
         devlog::handle_devlog_query(self, input.text, input.tags, input.limit)
     }
 
+    #[tool(description = "Render all devlog entries to a DEVLOG.md file")]
+    async fn devlog_generate(
+        &self,
+        Parameters(input): Parameters<devlog::DevlogGenerateInput>,
+    ) -> Result<CallToolResult, rmcp::ErrorData> {
+        devlog::handle_devlog_generate(self, input.output_path)
+    }
+
     #[tool(description = "Get advice on what to work on")]
     async fn what_should_i_work_on(
         &self,
