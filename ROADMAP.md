@@ -30,8 +30,8 @@ Product phases for nerdtime, the terminal-native quantified-self system for deve
 
 *The features that make nerdtime a personal analytics system, not just a timer.*
 
-- [ ] `nerd heatmap` — terminal heatmap (GitHub-style contribution grid)
-- [ ] `nerd insights` — per-project breakdown by weekday/hour
+- [x] `nerd heatmap` — terminal heatmap (GitHub-style contribution grid)
+- [x] `nerd insights` — per-project breakdown by weekday/hour
 - [x] `nerd devlog new` — structured session logging CLI
 - [x] `nerd devlog query` — search past context/decisions
 - [x] `nerd devlog generate` — auto-render DEVLOG.md from SQLite
@@ -48,9 +48,9 @@ Product phases for nerdtime, the terminal-native quantified-self system for deve
 
 *Ship-ready quality. Production deployment and onboarding.*
 
-- [ ] Stripe SDK migration (typed API, drop raw reqwest)
-- [ ] `nerd login` interactive prompt (`rpassword`)
-- [ ] `nerd signup` / `nerd logout`
+- [x] Stripe SDK migration (typed API, drop raw reqwest)
+- [x] `nerd login` interactive prompt (`rpassword`)
+- [x] `nerd signup` / `nerd logout`
 - [ ] Landing page at nerdtime.app
 - [ ] Install script + GitHub release binaries
 - [ ] Production deployment (backend + DB + Redis)
