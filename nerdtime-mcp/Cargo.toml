@@ -1,0 +1,22 @@
+[package]
+name = "nerdtime-mcp"
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0-only"
+
+[dependencies]
+rmcp = { version = "2.2", features = ["server", "transport-io", "schemars", "macros"] }
+nerdtime-db = { path = "../nerdtime-db" }
+nerdtime-core = { path = "../nerdtime-core" }
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+uuid = { version = "1", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+dirs = "5"
+toml = "0.8"
+reqwest = { version = "0.12", features = ["blocking", "json"] }
+schemars = "1.2"
