@@ -27,6 +27,9 @@ pub enum InsertTarget {
     AdvisorTime,
     AdvisorEnergy,
     AdvisorBlocked,
+    NewDevlogTitle,
+    NewDevlogRole,
+    NewDevlogTags,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -51,6 +54,7 @@ pub enum Modal {
     DevlogDetail(usize),
     Heatmap,
     Insights,
+    NewDevlogEntry,
 }
 
 #[derive(Debug, Clone)]
@@ -118,6 +122,9 @@ pub struct App {
     pub advisor_blocked: String,
     pub devlog_search_query: String,
     pub filter_text_prev: String,
+    pub new_devlog_title: String,
+    pub new_devlog_role: String,
+    pub new_devlog_tags: String,
     pub last_tick: std::time::Instant,
     pub heatmap_data: Vec<db::HeatmapCell>,
     pub insights_data: Option<db::Insights>,
@@ -188,6 +195,9 @@ impl App {
             advisor_blocked: String::new(),
             devlog_search_query: String::new(),
             filter_text_prev: String::new(),
+            new_devlog_title: String::new(),
+            new_devlog_role: String::new(),
+            new_devlog_tags: String::new(),
             last_tick: std::time::Instant::now(),
             heatmap_data: Vec::new(),
             insights_data: None,
@@ -200,14 +210,19 @@ impl App {
     pub fn handle_key(&mut self, key: crossterm::event::KeyEvent, conn: &db::Connection) -> Result<bool> {
         use crossterm::event::KeyCode;
 
+        // Insert mode must be handled even when a modal is active (form fields)
+        if let Mode::Insert(ref target) = self.mode {
+            return self.handle_insert_key(key, target.clone(), conn);
+        }
+
         if self.active_modal.is_some() {
             return self.handle_modal_key(key, conn);
         }
 
         match self.mode {
             Mode::Normal => self.handle_normal_key(key, conn),
-            Mode::Insert(ref target) => self.handle_insert_key(key, target.clone(), conn),
             Mode::Command(_) => self.handle_command_key(key, conn),
+            Mode::Insert(_) => unreachable!(),
         }
     }
 
@@ -358,7 +373,8 @@ impl App {
                         self.mode = Mode::Insert(InsertTarget::NewTaskTitle);
                     }
                     Panel::Devlog => {
-                        self.active_modal = Some(Modal::NewSession);
+                        self.active_modal = Some(Modal::NewDevlogEntry);
+                        self.mode = Mode::Insert(InsertTarget::NewDevlogTitle);
                     }
                     _ => {}
                 }
@@ -512,10 +528,12 @@ impl App {
                 match target {
                     InsertTarget::Filter => {
                         self.filter_text = text;
+                        self.insert_buffer.clear();
                         self.mode = Mode::Normal;
                     }
                     InsertTarget::NewSessionProject => {
                         self.new_session_project = text;
+                        self.insert_buffer.clear();
                         self.mode = Mode::Insert(InsertTarget::NewSessionDescription);
                     }
                     InsertTarget::NewSessionDescription => {
@@ -535,6 +553,7 @@ impl App {
                             );
                             self.new_session_project.clear();
                             self.new_session_desc.clear();
+                            self.insert_buffer.clear();
                             self.active_modal = None;
                             self.mode = Mode::Normal;
                             self.refresh_all(conn);
@@ -542,10 +561,12 @@ impl App {
                     }
                     InsertTarget::NewTaskTitle => {
                         self.new_task_title = text;
+                        self.insert_buffer.clear();
                         self.mode = Mode::Insert(InsertTarget::NewTaskEstimate);
                     }
                     InsertTarget::NewTaskEstimate => {
                         self.new_task_estimate = text;
+                        self.insert_buffer.clear();
                         self.mode = Mode::Insert(InsertTarget::NewTaskLabels);
                     }
                     InsertTarget::NewTaskLabels => {
@@ -575,6 +596,7 @@ impl App {
                             self.new_task_title.clear();
                             self.new_task_estimate.clear();
                             self.new_task_labels.clear();
+                            self.insert_buffer.clear();
                             self.active_modal = None;
                             self.mode = Mode::Normal;
                             self.refresh_all(conn);
@@ -592,13 +614,16 @@ impl App {
                         }
                         self.selected_index = 0;
                         self.mode = Mode::Normal;
+                        self.insert_buffer.clear();
                     }
                     InsertTarget::AdvisorTime => {
                         self.advisor_time = text;
+                        self.insert_buffer.clear();
                         self.mode = Mode::Insert(InsertTarget::AdvisorEnergy);
                     }
                     InsertTarget::AdvisorEnergy => {
                         self.advisor_energy = text;
+                        self.insert_buffer.clear();
                         self.mode = Mode::Insert(InsertTarget::AdvisorBlocked);
                     }
                     InsertTarget::AdvisorBlocked => {
@@ -621,8 +646,46 @@ impl App {
                             self.mode = Mode::Normal;
                         }
                     }
-                    InsertTarget::Filter => {
-                        self.filter_text = text;
+                    InsertTarget::NewDevlogTitle => {
+                        self.new_devlog_title = text;
+                        self.insert_buffer.clear();
+                        self.mode = Mode::Insert(InsertTarget::NewDevlogRole);
+                    }
+                    InsertTarget::NewDevlogRole => {
+                        self.new_devlog_role = text;
+                        self.insert_buffer.clear();
+                        self.mode = Mode::Insert(InsertTarget::NewDevlogTags);
+                    }
+                    InsertTarget::NewDevlogTags => {
+                        self.new_devlog_tags = text;
+                        if !self.new_devlog_title.is_empty() {
+                            let tags: Vec<String> = self
+                                .new_devlog_tags
+                                .split(',')
+                                .map(|s| s.trim().to_string())
+                                .filter(|s| !s.is_empty())
+                                .collect();
+                            let entry = nerdtime_core::DevlogEntry {
+                                id: uuid::Uuid::new_v4().to_string(),
+                                date: chrono::Utc::now().format("%Y-%m-%d").to_string(),
+                                title: self.new_devlog_title.clone(),
+                                role: self.new_devlog_role.clone(),
+                                tags,
+                                context: String::new(),
+                                changes: vec![],
+                                decisions: vec![],
+                                commits: vec![],
+                                session_id: None,
+                                created_at: chrono::Utc::now().to_rfc3339(),
+                            };
+                            let _ = db::insert_devlog_entry(conn, &entry);
+                            self.refresh_all(conn);
+                        }
+                        self.new_devlog_title.clear();
+                        self.new_devlog_role.clear();
+                        self.new_devlog_tags.clear();
+                        self.insert_buffer.clear();
+                        self.active_modal = None;
                         self.mode = Mode::Normal;
                     }
                 }

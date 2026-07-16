@@ -21,6 +21,7 @@ pub fn render_modal(f: &mut Frame, area: Rect, app: &App) {
     match modal {
         Modal::NewSession => render_new_session_form(f, modal_area, app),
         Modal::NewTask => render_new_task_form(f, modal_area, app),
+        Modal::NewDevlogEntry => render_new_devlog_form(f, modal_area, app),
         Modal::Help => render_help_overlay(f, modal_area),
         Modal::Confirm { message, .. } => render_confirm_dialog(f, modal_area, message),
         Modal::FilterInput => render_filter_input(f, modal_area, app),
@@ -49,6 +50,32 @@ fn render_new_session_form(f: &mut Frame, area: Rect, app: &App) {
         Line::from(Span::raw(format!("  {}", app.new_session_desc))),
         Line::from(Span::raw("")),
         Line::from(Span::styled(" [Enter] Save  [Esc] Cancel", Style::new().fg(Color::DarkGray))),
+    ];
+
+    let paragraph = Paragraph::new(Text::from(lines));
+    f.render_widget(paragraph, inner);
+}
+
+fn render_new_devlog_form(f: &mut Frame, area: Rect, app: &App) {
+    let block = Block::default()
+        .title(" New Devlog Entry ")
+        .borders(Borders::ALL)
+        .border_style(Style::new().fg(Color::Cyan));
+    let inner = block.inner(area);
+    f.render_widget(Clear, area);
+    f.render_widget(block, area);
+
+    let lines = vec![
+        Line::from(Span::styled("Title:", Style::new().add_modifier(Modifier::BOLD))),
+        Line::from(Span::raw(format!("  {}", app.new_devlog_title))),
+        Line::from(Span::raw("")),
+        Line::from(Span::styled("Role:", Style::new().add_modifier(Modifier::BOLD))),
+        Line::from(Span::raw(format!("  {}", app.new_devlog_role))),
+        Line::from(Span::raw("")),
+        Line::from(Span::styled("Tags (comma-separated):", Style::new().add_modifier(Modifier::BOLD))),
+        Line::from(Span::raw(format!("  {}", app.new_devlog_tags))),
+        Line::from(Span::raw("")),
+        Line::from(Span::styled(" [Enter] Next field  [Esc] Cancel", Style::new().fg(Color::DarkGray))),
     ];
 
     let paragraph = Paragraph::new(Text::from(lines));
