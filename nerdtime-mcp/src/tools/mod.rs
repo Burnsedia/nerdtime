@@ -85,7 +85,7 @@ impl AppState {
 
     #[tool(description = "Sync local sessions to the nerdtime API server")]
     async fn sync(&self) -> Result<CallToolResult, rmcp::ErrorData> {
-        sessions::handle_sync(self)
+        sessions::handle_sync(self).await
     }
 
     #[tool(description = "List tasks, optionally filtered by project")]

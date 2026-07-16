@@ -97,49 +97,53 @@ pub fn handle_get_stats(
     ok(lines.join("\n"))
 }
 
-pub fn handle_sync(state: &AppState) -> Result<CallToolResult, ErrorData> {
-    let conn = state.conn.lock().map_err(wrap_err)?;
-
+pub async fn handle_sync(state: &AppState) -> Result<CallToolResult, ErrorData> {
     let api_url = state
         .config
         .api_url
         .as_deref()
-        .unwrap_or("http://localhost:5150");
-    let token = state.config.token.as_deref().unwrap_or("");
+        .unwrap_or("http://localhost:5150")
+        .to_string();
+    let token = state.config.token.as_deref().unwrap_or("").to_string();
 
-    let sessions = nerdtime_db::get_unsynced_sessions(&conn).map_err(wrap_err)?;
+    let payload = {
+        let conn = state.conn.lock().map_err(wrap_err)?;
+        let sessions = nerdtime_db::get_unsynced_sessions(&conn).map_err(wrap_err)?;
 
-    if sessions.is_empty() {
-        return ok("Nothing to sync".to_string());
-    }
+        if sessions.is_empty() {
+            return ok("Nothing to sync".to_string());
+        }
 
-    let payload: Vec<nerdtime_core::SyncPayload> = sessions
-        .iter()
-        .map(|s| nerdtime_core::SyncPayload {
-            id: s.id,
-            project_name: s.project_name.clone(),
-            branch_name: s.branch_name.clone(),
-            commit_hash: s.commit_hash.clone(),
-            description: s.description.clone(),
-            started_at: s.started_at,
-            ended_at: s.ended_at,
-            task_id: s.task_id.clone(),
-            estimated_seconds: s.estimated_seconds,
-            labels: s.labels.clone(),
-        })
-        .collect();
+        sessions
+            .iter()
+            .map(|s| nerdtime_core::SyncPayload {
+                id: s.id,
+                project_name: s.project_name.clone(),
+                branch_name: s.branch_name.clone(),
+                commit_hash: s.commit_hash.clone(),
+                description: s.description.clone(),
+                started_at: s.started_at,
+                ended_at: s.ended_at,
+                task_id: s.task_id.clone(),
+                estimated_seconds: s.estimated_seconds,
+                labels: s.labels.clone(),
+            })
+            .collect::<Vec<_>>()
+    };
 
-    let client = reqwest::blocking::Client::new();
+    let client = reqwest::Client::new();
     let resp = client
         .post(format!("{}/api/sync", api_url))
         .header("Authorization", format!("Bearer {}", token))
         .json(&payload)
-        .send();
+        .send()
+        .await;
 
     match resp {
         Ok(_) => {
+            let conn = state.conn.lock().map_err(wrap_err)?;
             let _ = nerdtime_db::mark_synced(&conn);
-            ok(format!("Synced {} sessions", sessions.len()))
+            ok(format!("Synced {} sessions", payload.len()))
         }
         Err(e) => err(format!("Sync failed: {e}")),
     }
