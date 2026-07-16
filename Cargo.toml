@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["nerd", "nerdtime-core", "nerdtime-api", "nerdtime-api/migration"]
+members = ["nerd", "nerdtime-core", "nerdtime-db", "nerdtime-mcp", "nerdtime-api", "nerdtime-api/migration"]
 license = "AGPL-3.0-only"
 
 [workspace.dependencies]
