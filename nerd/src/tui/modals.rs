@@ -7,7 +7,7 @@ use ratatui::{
     Frame,
 };
 
-use crate::tui::app::{App, Modal};
+use crate::tui::app::{App, InsertTarget, Mode, Modal};
 use crate::tui::widgets::centered_rect;
 
 pub fn render_modal(f: &mut Frame, area: Rect, app: &App) {
@@ -42,14 +42,25 @@ fn render_new_session_form(f: &mut Frame, area: Rect, app: &App) {
     f.render_widget(Clear, area);
     f.render_widget(block, area);
 
+    let project_val = if matches!(app.mode, Mode::Insert(InsertTarget::NewSessionProject)) {
+        format!("{}_", app.insert_buffer)
+    } else {
+        app.new_session_project.clone()
+    };
+    let desc_val = if matches!(app.mode, Mode::Insert(InsertTarget::NewSessionDescription)) {
+        format!("{}_", app.insert_buffer)
+    } else {
+        app.new_session_desc.clone()
+    };
+
     let lines = vec![
         Line::from(Span::styled("Project:", Style::new().add_modifier(Modifier::BOLD))),
-        Line::from(Span::raw(format!("  {}", app.new_session_project))),
+        Line::from(Span::raw(format!("  {}", project_val))),
         Line::from(Span::raw("")),
         Line::from(Span::styled("Description:", Style::new().add_modifier(Modifier::BOLD))),
-        Line::from(Span::raw(format!("  {}", app.new_session_desc))),
+        Line::from(Span::raw(format!("  {}", desc_val))),
         Line::from(Span::raw("")),
-        Line::from(Span::styled(" [Enter] Save  [Esc] Cancel", Style::new().fg(Color::DarkGray))),
+        Line::from(Span::styled(" [Enter] Next field  [Esc] Cancel", Style::new().fg(Color::DarkGray))),
     ];
 
     let paragraph = Paragraph::new(Text::from(lines));
@@ -65,15 +76,31 @@ fn render_new_devlog_form(f: &mut Frame, area: Rect, app: &App) {
     f.render_widget(Clear, area);
     f.render_widget(block, area);
 
+    let title_val = if matches!(app.mode, Mode::Insert(InsertTarget::NewDevlogTitle)) {
+        format!("{}_", app.insert_buffer)
+    } else {
+        app.new_devlog_title.clone()
+    };
+    let role_val = if matches!(app.mode, Mode::Insert(InsertTarget::NewDevlogRole)) {
+        format!("{}_", app.insert_buffer)
+    } else {
+        app.new_devlog_role.clone()
+    };
+    let tags_val = if matches!(app.mode, Mode::Insert(InsertTarget::NewDevlogTags)) {
+        format!("{}_", app.insert_buffer)
+    } else {
+        app.new_devlog_tags.clone()
+    };
+
     let lines = vec![
         Line::from(Span::styled("Title:", Style::new().add_modifier(Modifier::BOLD))),
-        Line::from(Span::raw(format!("  {}", app.new_devlog_title))),
+        Line::from(Span::raw(format!("  {}", title_val))),
         Line::from(Span::raw("")),
         Line::from(Span::styled("Role:", Style::new().add_modifier(Modifier::BOLD))),
-        Line::from(Span::raw(format!("  {}", app.new_devlog_role))),
+        Line::from(Span::raw(format!("  {}", role_val))),
         Line::from(Span::raw("")),
         Line::from(Span::styled("Tags (comma-separated):", Style::new().add_modifier(Modifier::BOLD))),
-        Line::from(Span::raw(format!("  {}", app.new_devlog_tags))),
+        Line::from(Span::raw(format!("  {}", tags_val))),
         Line::from(Span::raw("")),
         Line::from(Span::styled(" [Enter] Next field  [Esc] Cancel", Style::new().fg(Color::DarkGray))),
     ];
