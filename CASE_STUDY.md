@@ -1,4 +1,4 @@
-# Building nerdtime: A Case Study in Vibe Coding / Session-Driven Development
+# Building nerdtime: A Case Study in Vibe Coding / Spec Driven Development
 
 ## Origin
 
@@ -12,7 +12,7 @@ nerdtime started as a PDF specification describing a full-stack Rust time tracke
 
 Total: ~3,500 lines of Rust + TOML, compiled and running in a single evening.
 
-## Process: Session-Driven Development
+## Process: Spec Driven Development
 
 Every coding session follows the same loop:
 
