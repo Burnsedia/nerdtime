@@ -63,6 +63,8 @@ I usually writhe the specs myself and have AI poke holes in my architecture and 
 I use Behavioer Driven development wiht Spec Driven development to defined how the app should Behave, Look and feel. I use Spec Driven development to define the data structues, controle flow an logic of the app, then I use test driven development to be able to veryify that the app works as intended 
 
 #### AI security fails
+
+
 The AI secure review bot found 25 security issues and 4 were critical security issues, they were:
 - **Command injection** the AI calles the defualt editor env directly using  using subprocces `sh -c "$EDITOR {id}"`. `$EDITOR`, this can contain shell metacharacters that would allow an attacker to reach to the internet via curl. Your box could need to already be poped but RCE is really bad 
 
