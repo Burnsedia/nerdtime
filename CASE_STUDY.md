@@ -64,16 +64,20 @@ I use Behavioer Driven development wiht Spec Driven development to defined how t
 
 #### AI security fails
 
-
 The AI secure review bot found 25 security issues and 4 were critical security issues, they were:
+
 - **Command injection** the AI calles the defualt editor env directly using  using subprocces `sh -c "$EDITOR {id}"`. `$EDITOR`, this can contain shell metacharacters that would allow an attacker to reach to the internet via curl. Your box could need to already be poped but RCE is really bad 
 
 - **SQL injection** the AI used string interpolation instead of parameterized bindings. 
 
-- **JWT token stored world-readable** the AI wrought to a Config file at `~/.config/nerdtime/config.toml` written with default umask (typically `0644`). JWT token readable by any process on the system. No `set_permissions()` call, no keyring integration. This meands anyone can fough keys and use 
+- **JWT token stored world-readable** the AI wrought to a Config file at `~/.config/nerdtime/config.toml` written with default umask (typically `0644`). JWT token readable by any process on the system. No `set_permissions()` call, no keyring integration. This means anyone can forge keys and use
 
-- **Hardcoded JWT secrets (dev)**`config/development.yaml:107` and `docker-compose.dev.yml:19` contain literal JWT signing key `WqOAD0KPFoE8YgKw7Ok1`. Anyone with repo access can forge JWTs for dev/staging instances. | `nerdtime-api/config/development.yaml:107`, `docker-compose.dev.yml:19` |
+- **Hardcoded JWT secrets (dev)**`config/development.yaml:107` and `docker-compose.dev.yml:19` contain literal JWT signing key `WqOAD0KPFoE8YgKw7Ok1`. Anyone with repo access can forge JWTs for dev/staging instances. I junior dev would not make this mistake  
 
 
 #### AI code quality fails
+
+The Code is horrible spaghetti code. I am going to have to do a full rewrite to make this a production grade app. I wanted it to use a MonoRepo pattern to make managing shared logic easier and the AI still duplicated the logic in several places. 
+
+
 
