@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 use ratatui::{
-    layout::{Constraint, Direction, Layout, Rect},
+    layout::Rect,
     style::{Color, Modifier, Style, Stylize},
     text::{Line, Span},
-    widgets::{Block, Borders, Paragraph},
+    widgets::{Block, Borders},
     Frame,
 };
 use nerdtime_db as db;

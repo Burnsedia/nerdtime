@@ -1,12 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-use crate::config;
 use anyhow::Result;
-use chrono::Utc;
-use crossterm::event::KeyEvent;
 use nerdtime_db as db;
-use nerdtime_db::Connection;
-use nerdtime_core::{Advice, DevlogEntry, ProjectStat, Session, TaskRow};
-use std::time::Instant;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Mode {
@@ -210,7 +204,7 @@ impl App {
     }
 
     pub fn handle_key(&mut self, key: crossterm::event::KeyEvent, conn: &db::Connection) -> Result<bool> {
-        use crossterm::event::KeyCode;
+        
 
         // Insert mode must be handled even when a modal is active (form fields)
         if let Mode::Insert(ref target) = self.mode {
@@ -238,16 +232,16 @@ impl App {
             KeyCode::Enter => {
                 let modal = self.active_modal.clone();
                 match modal {
-                    Some(Modal::Confirm { ref message, ref action }) => {
+                    Some(Modal::Confirm { message: _, ref action }) => {
                         match action {
                             ConfirmAction::Quit => {
                                 return Ok(true);
                             }
-                            ConfirmAction::DeleteSession(idx) => {
+                            ConfirmAction::DeleteSession(_idx) => {
                                 self.active_modal = None;
                                 self.refresh_all(conn);
                             }
-                            ConfirmAction::DeleteTask(idx) => {
+                            ConfirmAction::DeleteTask(_idx) => {
                                 self.active_modal = None;
                                 self.refresh_all(conn);
                             }

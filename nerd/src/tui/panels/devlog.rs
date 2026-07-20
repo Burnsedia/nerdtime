@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 use ratatui::{
-    layout::{Constraint, Rect},
-    style::{Color, Modifier, Style, Stylize},
+    layout::Rect,
+    style::{Color, Style, Stylize},
     text::{Line, Span},
     widgets::{Block, Borders},
     Frame,
 };
-use nerdtime_db as db;
 
 use crate::tui::app::App;
 use crate::tui::widgets::truncate;
