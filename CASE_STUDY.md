@@ -21,7 +21,7 @@ So over about 10 hours I built a very simple **microSaaS**, I never deployed it 
 
 ## what I learned* 
 
-**AI is a powerfull tool but no repalcment for skill**.
+**AI is a powerful tool but no replacement for skill**.
 
 I build this is a Hybrid of Spec Driven Deven development **(SDD)** and VibeCoding. 
 
