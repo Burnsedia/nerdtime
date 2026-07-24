@@ -19,7 +19,7 @@ Because of the rapid build, I got inspired and went for my stretch goals of:
 
 So over about 10 hours I built a very simple **microSaaS**, I never deployed it but it is functionally done.
 
-## what I learned* 
+## what I learned 
 
 **AI is a powerful tool but no replacement for skill**.
 
