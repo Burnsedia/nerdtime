@@ -1,7 +1,7 @@
 
 ## intro
-I got adhd from hell, so I use the termal all the time. 
-I could not find a good termal project mangage tool so I build my own and named it NerdTime
+I got adhd from hell, so I use the terminal all the time. 
+I could not find a good terminal project management tool so I built my own and named it NerdTime.
 
 The time tracker needed an:
 
