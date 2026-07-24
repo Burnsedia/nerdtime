@@ -30,7 +30,7 @@ I did this for 2 reasons:
 - Rapid prototyping
 - to see if professional high quality software can be built with AI alone
 
-One can rapid prototype a app with SDD and VibeCoding, but I did not get professional code quality though. This may be a skill issue.
+One can rapid prototype an app with SDD and VibeCoding, but I did not get professional code quality though. This may be a skill issue.
 
 
 ### My Process
