@@ -77,7 +77,7 @@ The AI secure review bot found 25 security issues and 4 were critical security i
 
 #### AI code quality fails
 
-The Code is horrible spaghetti code. I am going to have to do a full rewrite to make this a production grade app. I wanted it to use a MonoRepo pattern to make managing shared logic easier and the AI still duplicated the logic in several places. 
+The code is horrible spaghetti code. I am going to have to do a full rewrite to make this a production grade app. I wanted it to use a MonoRepo pattern to make managing shared logic easier and the AI still duplicated the logic in several places. 
 
 
 
