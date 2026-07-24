@@ -45,7 +45,7 @@ After about 2 hours of doing this I had a working app, I actually started to use
 
 ### why it went well
 
-I define a somewhat specific and professional spec. Based on my conversation I had with the AI I was able to git it to write a architecture and pick a stack. Gemini also picked a decent language and business model.
+I define a somewhat specific and professional spec. Based on my conversation I had with the AI I was able to get it to write an architecture and pick a stack. Gemini also picked a decent language and business model.
 
 ### how can I improve
 
