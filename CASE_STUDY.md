@@ -10,7 +10,7 @@ The time tracker needed an:
 
 I built it in 2 hours with **OpenCode**, **DeepSeek v4 flash** and **Weaponized Autism**.
 
-Because of the rapid build, I got inspired and whent for my streech goals of:
+Because of the rapid build, I got inspired and went for my stretch goals of:
 
 - **Insights**
 - **Heatmap**
