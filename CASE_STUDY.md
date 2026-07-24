@@ -53,7 +53,7 @@ I have ideas on how I can improve this. One thing I need to use a better model, 
 
 The more you specify the AI the less of a chance it has at hallucinating and writing buggy code. So you need to make each spec as airtight as possible and as meticulously detailed as possible 
 
-I also recommend sticking to rust and use both a LSP and Clipy to feed context tot the AI. By doing that The AI gets a tone of context that allows it to better debug and improve the code. 
+I also recommend sticking to Rust and use both a LSP and Clippy to feed context to the AI. By doing that the AI gets a ton of context that allows it to better debug and improve the code. 
 
 I find that I can in theory fully automate my AI augmented flow by having a multi-agent workflow, One agent defines product, another does market research, another 2 review the first 2 work. Then a UI/UX agent creates users flows, project manger creates user stores and Behavioer drivent development sensiors then a Senior engineer agent creates the specs and yet angain another 2 review agents review and check there work then the codinging agents build the hole dam thing
 
