@@ -8,7 +8,7 @@ The time tracker needed an:
 - **CLI** (`nerd start/stop/status/log/sync/login`) 
 - **Backend API**
 
-I build it in 2 hours with **OpenCode**, **DeepSeek v4 flash** and **Weaponized Autism**.
+I built it in 2 hours with **OpenCode**, **DeepSeek v4 flash** and **Weaponized Autism**.
 
 Because of the rapid build, I got inspired and whent for my streech goals of:
 
