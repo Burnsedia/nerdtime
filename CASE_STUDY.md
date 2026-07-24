@@ -49,7 +49,7 @@ I define a somewhat specific and professional spec. Based on my conversation I h
 
 ### how can I improve
 
-I have ideas on how I can improve this. One thing I need to use use a better model, I used Gemini Flash not Pro. Another Think I can do to improve my workflow is to not delegate the architecture of the app to the AI but to augment my thinking but this was a experiment to see if AI can do everything so to that end maybe feed the AI templates and stick to one framework and Design Pattern.
+I have ideas on how I can improve this. One thing I need to use a better model, I used Gemini Flash not Pro. Another thing I can do to improve my workflow is to not delegate the architecture of the app to the AI but to augment my thinking but this was an experiment to see if AI can do everything so to that end maybe feed the AI templates and stick to one framework and Design Pattern.
 
 The More you specify the AI the less of a change it has at holisating and writing buggy code. So you need to make each spec as airthight as possible and as autisticly detailed as possible 
 
