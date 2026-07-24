@@ -28,7 +28,7 @@ I built this as a Hybrid of Spec Driven Development **(SDD)** and VibeCoding.
 I did this for 2 reasons:
 
 - Rapid prototyping
-- to see if professional high quality software con be built with AI alone
+- to see if professional high quality software can be built with AI alone
 
 One can rapid prototype a app with SDD an VibeCoding, but I did not get professional code quality though. This may be a skill issue.
 
