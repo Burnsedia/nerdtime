@@ -55,7 +55,7 @@ The more you specify the AI the less of a chance it has at hallucinating and wri
 
 I also recommend sticking to Rust and use both a LSP and Clippy to feed context to the AI. By doing that the AI gets a ton of context that allows it to better debug and improve the code. 
 
-I find that I can in theory fully automate my AI augmented flow by having a multi-agent workflow, One agent defines product, another does market research, another 2 review the first 2 work. Then a UI/UX agent creates users flows, project manger creates user stores and Behavioer drivent development sensiors then a Senior engineer agent creates the specs and yet angain another 2 review agents review and check there work then the codinging agents build the hole dam thing
+I find that I can in theory fully automate my AI augmented flow by having a multi-agent workflow. One agent defines product, another does market research, another 2 review the first 2 work. Then a UI/UX agent creates user flows, project manager creates user stories and Behavior driven development seniors. Then a Senior engineer agent creates the specs and yet again another 2 review agents review and check their work. Then the coding agents build the whole damn thing
 
 #### My usually AI workflow
 I usually writhe the specs myself and have AI poke holes in my architecture and I find AI is really good at Code Review. After I define my specs I usually then write the models and database schema myself and then have the AI review it. Same with tests on core Business logic.
