@@ -17,7 +17,7 @@ Because of the rapid build, I got inspired and went for my stretch goals of:
 - **Devlog**
 - **MCP** 
 
-So over about 10 hours I build a very simple **microSaaS**, I never deployed it but is is functionally done.
+So over about 10 hours I built a very simple **microSaaS**, I never deployed it but it is functionally done.
 
 ## what I learned* 
 
