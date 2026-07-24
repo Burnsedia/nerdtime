@@ -51,7 +51,7 @@ I define a somewhat specific and professional spec. Based on my conversation I h
 
 I have ideas on how I can improve this. One thing I need to use a better model, I used Gemini Flash not Pro. Another thing I can do to improve my workflow is to not delegate the architecture of the app to the AI but to augment my thinking but this was an experiment to see if AI can do everything so to that end maybe feed the AI templates and stick to one framework and Design Pattern.
 
-The More you specify the AI the less of a change it has at holisating and writing buggy code. So you need to make each spec as airthight as possible and as autisticly detailed as possible 
+The more you specify the AI the less of a chance it has at hallucinating and writing buggy code. So you need to make each spec as airtight as possible and as meticulously detailed as possible 
 
 I also recommend sticking to rust and use both a LSP and Clipy to feed context tot the AI. By doing that The AI gets a tone of context that allows it to better debug and improve the code. 
 
