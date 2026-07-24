@@ -41,7 +41,7 @@ So I chatted with Gemini and did some market research. After defining the produc
 
 ### what went well
 
-After about 2 hours of doing this I had a working app, I actually started to use it and I started adding my streach goals. I felt like a coding god even though I did not touch or right a single line of code. 
+After about 2 hours of doing this I had a working app, I actually started to use it and I started adding my stretch goals. I felt like a coding god even though I did not touch or write a single line of code. 
 
 ### why it went well
 
