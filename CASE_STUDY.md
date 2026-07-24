@@ -37,7 +37,7 @@ One can rapid prototype a app with SDD and VibeCoding, but I did not get profess
 
 I had an idea for a MicroSaaS and I already had the domain but never had the time to build it.
 
-So I chatted with Gemini and did some market research, after defining the product I defined the features, commands, architecture etc in a back and forth conversation with Gemini. after I was thought I thought of everything(FORSHOADOING)I downloeaded the PDF and opened it up in OpenCode
+So I chatted with Gemini and did some market research. After defining the product I defined the features, commands, architecture etc in a back and forth conversation with Gemini. After I thought I thought of everything (foreshadowing), I downloaded the PDF and opened it up in OpenCode.
 
 ### what went well
 
