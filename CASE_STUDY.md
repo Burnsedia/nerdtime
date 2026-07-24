@@ -72,7 +72,7 @@ The AI secure review bot found 25 security issues and 4 were critical security i
 
 - **JWT token stored world-readable** the AI wrote to a Config file at `~/.config/nerdtime/config.toml` written with default umask (typically `0644`). JWT token readable by any process on the system. No `set_permissions()` call, no keyring integration. This means anyone can forge keys and use them
 
-- **Hardcoded JWT secrets (dev)**`config/development.yaml:107` and `docker-compose.dev.yml:19` contain literal JWT signing key `WqOAD0KPFoE8YgKw7Ok1`. Anyone with repo access can forge JWTs for dev/staging instances. A junior dev would not make this mistake  
+- **Hardcoded JWT secrets (dev)** `config/development.yaml:107` and `docker-compose.dev.yml:19` contain literal JWT signing key `WqOAD0KPFoE8YgKw7Ok1`. Anyone with repo access can forge JWTs for dev/staging instances. A junior dev would not make this mistake  
 
 
 #### AI code quality fails
