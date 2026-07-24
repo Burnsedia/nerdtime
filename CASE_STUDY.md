@@ -23,7 +23,7 @@ So over about 10 hours I built a very simple **microSaaS**, I never deployed it 
 
 **AI is a powerful tool but no replacement for skill**.
 
-I build this is a Hybrid of Spec Driven Deven development **(SDD)** and VibeCoding. 
+I built this as a Hybrid of Spec Driven Development **(SDD)** and VibeCoding. 
 
 I did this for 2 reasons:
 
