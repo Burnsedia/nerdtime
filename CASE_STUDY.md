@@ -60,7 +60,7 @@ I find that I can in theory fully automate my AI augmented flow by having a mult
 #### My usually AI workflow
 I usually write the specs myself and have AI poke holes in my architecture and I find AI is really good at Code Review. After I define my specs I usually then write the models and database schema myself and then have the AI review it. Same with tests on core Business logic.
 
-I use Behavioer Driven development wiht Spec Driven development to defined how the app should Behave, Look and feel. I use Spec Driven development to define the data structues, controle flow an logic of the app, then I use test driven development to be able to veryify that the app works as intended 
+I use Behavior Driven development with Spec Driven development to defined how the app should Behave, Look and feel. I use Spec Driven development to define the data structures, control flow and logic of the app, then I use test driven development to be able to verify that the app works as intended 
 
 #### AI security fails
 
