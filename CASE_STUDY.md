@@ -66,7 +66,7 @@ I use Behavior Driven development with Spec Driven development to defined how th
 
 The AI secure review bot found 25 security issues and 4 were critical security issues, they were:
 
-- **Command injection** the AI calles the defualt editor env directly using  using subprocces `sh -c "$EDITOR {id}"`. `$EDITOR`, this can contain shell metacharacters that would allow an attacker to reach to the internet via curl. Your box could need to already be poped but RCE is really bad 
+- **Command injection** the AI calls the default editor env directly using subprocess `sh -c "$EDITOR {id}"`. `$EDITOR`, this can contain shell metacharacters that would allow an attacker to reach to the internet via curl. Your box could need to already be popped but RCE is really bad 
 
 - **SQL injection** the AI used string interpolation instead of parameterized bindings. 
 
